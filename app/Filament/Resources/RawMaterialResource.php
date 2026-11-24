@@ -225,6 +225,13 @@ class RawMaterialResource extends Resource
                         ->minValue(0)
                         ->helperText('Opsional — barang ditandai "Stok Menipis" kalau current stock ≤ angka ini.'),
 
+                    Forms\Components\TextInput::make('withdrawal_multiple')
+                        ->label('Kelipatan Pengambilan')
+                        ->numeric()
+                        ->minValue(0.01)
+                        ->suffix(fn (Forms\Get $get) => $get('unit'))
+                        ->helperText('Opsional — kalau diisi, pengambilan (memo dan Catat Stok Keluar) harus kelipatan angka ini, mis. 250. Kosongkan kalau bebas.'),
+
                     Forms\Components\TextInput::make('adjustment_note_threshold')
                         ->label('Selisih Opname Tanpa Catatan')
                         ->numeric()
@@ -575,8 +582,17 @@ class RawMaterialResource extends Resource
                                 'text/csv',
                             ])
                             ->helperText('Pakai format dari Download Template. Baris pertama dilewati. Stok Awal dicatat sebagai riwayat Masuk. Satuan Beli dan Isi per Satuan Beli diisi keduanya atau dikosongkan.'),
+
+                        // Batch Penerimaan (2026-11-23): satu import = satu batch dengan nomor otomatis; pemasok dan faktur opsional.
+                        Forms\Components\Select::make('supplier_id')
+                            ->label('Pemasok (opsional)')
+                            ->options(fn () => \App\Models\Supplier::where('is_active', true)->orderBy('name')->pluck('name', 'id'))
+                            ->searchable(),
+                        Forms\Components\TextInput::make('invoice_number')
+                            ->label('No. Faktur/Surat Jalan (opsional)')
+                            ->maxLength(80),
                     ])
-                    ->action(fn (array $data) => static::importMaterials($data['file']))
+                    ->action(fn (array $data) => static::importMaterials($data['file'], $data))
                     ->modalSubmitActionLabel('Import'),
             ])
             ->actions([
@@ -674,6 +690,18 @@ class RawMaterialResource extends Resource
                             ->helperText('Opsional — kosongkan untuk pakai harga terakhir tersimpan. Untuk estimasi nilai stok di Dashboard Inventaris.')
                             ->visible(fn (Forms\Get $get) => static::canSeeCost() && $get('type') === 'in' && ! $get('use_purchase_unit')),
 
+                        // Batch Penerimaan (2026-11-23): nomor batch dibuat otomatis tiap stok masuk; pemasok dan faktur opsional.
+                        Forms\Components\Select::make('supplier_id')
+                            ->label('Pemasok (opsional)')
+                            ->options(fn () => \App\Models\Supplier::where('is_active', true)->orderBy('name')->pluck('name', 'id'))
+                            ->searchable()
+                            ->visible(fn (Forms\Get $get) => $get('type') === 'in'),
+
+                        Forms\Components\TextInput::make('invoice_number')
+                            ->label('No. Faktur/Surat Jalan (opsional)')
+                            ->maxLength(80)
+                            ->visible(fn (Forms\Get $get) => $get('type') === 'in'),
+
                         Forms\Components\Textarea::make('note')
                             ->label('Catatan')
                             ->placeholder('Mis. nomor PO, nama supplier, dipakai untuk booking apa'),
@@ -705,6 +733,8 @@ class RawMaterialResource extends Resource
                                 $data['received_date'] ?? null,
                                 $data['expiry_date'] ?? null,
                                 $unitCost,
+                                supplierId: isset($data['supplier_id']) && $data['supplier_id'] !== '' ? (int) $data['supplier_id'] : null,
+                                invoiceNumber: $data['invoice_number'] ?? null,
                             );
                         } catch (\InvalidArgumentException $e) {
                             Notification::make()
@@ -891,7 +921,7 @@ class RawMaterialResource extends Resource
      * movement 'in' (bukan cuma di-set langsung ke current_stock) supaya
      * ada jejak riwayatnya sejak awal.
      */
-    private static function importMaterials(string $uploadedPath): void
+    private static function importMaterials(string $uploadedPath, array $meta = []): void
     {
         $fullPath = Storage::disk('local')->path($uploadedPath);
 
@@ -915,6 +945,7 @@ class RawMaterialResource extends Resource
         array_shift($rows); // baris pertama = header
 
         $createdCount = 0;
+        $importBatch = null;
         $codeConflicts = 0;
         $seenCodesInFile = [];
         $problems = [];
@@ -924,6 +955,17 @@ class RawMaterialResource extends Resource
         $knownNames = RawMaterial::query()->pluck('name')
             ->mapWithKeys(fn ($existing) => [mb_strtolower(trim((string) $existing)) => true])
             ->all();
+
+        // Satu import = satu Batch Penerimaan untuk semua baris yang membawa stok awal; dibuka lazim di baris pertama yang butuh,
+        // di luar transaksi per baris supaya kegagalan satu baris tidak menggulung batch bersama.
+        $openBatch = function () use (&$importBatch, $meta) {
+            return $importBatch ??= \App\Models\StockBatch::open(\App\Models\StockBatch::TYPE_RAW_MATERIAL, [
+                'supplier_id' => isset($meta['supplier_id']) && $meta['supplier_id'] !== '' ? (int) $meta['supplier_id'] : null,
+                'invoice_number' => $meta['invoice_number'] ?? null,
+                'notes' => 'Import Excel',
+                'created_by' => auth()->id(),
+            ]);
+        };
 
         foreach ($rows as $index => $row) {
             $line = $index + 2; // baris header sudah dibuang; nomor baris di Excel mulai dari 1
@@ -996,7 +1038,9 @@ class RawMaterialResource extends Resource
 
             // Bahan dan stok awalnya satu kesatuan: kalau salah satu gagal, tidak ada yang tersimpan setengah-setengah.
             try {
-                DB::transaction(function () use ($name, $useCode, $category, $receivedDate, $unit, $reorderPoint, $unitCost, $expiryDate, $notes, $initialStock, $purchaseUnit, $purchaseFactor) {
+                $batchId = $initialStock > 0 ? $openBatch()->id : null;
+
+                DB::transaction(function () use ($name, $useCode, $category, $receivedDate, $unit, $reorderPoint, $unitCost, $expiryDate, $notes, $initialStock, $purchaseUnit, $purchaseFactor, $batchId) {
                     $material = RawMaterial::create([
                         'name' => $name,
                         'code' => $useCode,
@@ -1014,7 +1058,7 @@ class RawMaterialResource extends Resource
                     ]);
 
                     if ($initialStock > 0) {
-                        $material->recordMovement('in', $initialStock, auth()->id(), 'Stok awal dari import Excel.', $receivedDate, $expiryDate);
+                        $material->recordMovement('in', $initialStock, auth()->id(), 'Stok awal dari import Excel.', $receivedDate, $expiryDate, stockBatchId: $batchId);
                     }
                 });
             } catch (\Throwable $e) {
@@ -1025,6 +1069,11 @@ class RawMaterialResource extends Resource
 
             $knownNames[$nameKey] = true;
             $createdCount++;
+        }
+
+        // Import tanpa stok awal yang tersimpan tidak meninggalkan batch kosong.
+        if ($importBatch && ! $importBatch->rawMaterialBatches()->exists()) {
+            $importBatch->delete();
         }
 
         $bodyLines = ["{$createdCount} bahan baku berhasil didaftarkan."];

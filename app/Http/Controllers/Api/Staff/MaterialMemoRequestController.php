@@ -32,6 +32,9 @@ class MaterialMemoRequestController extends Controller
             'is_locked' => $memo->isLocked(),
             'can_approve' => $memo->request_status === MaterialMemo::REQ_PENDING && $this->service->canApprove($user, $memo),
             'can_hand_over' => $memo->request_status === MaterialMemo::REQ_APPROVED && $this->service->canHandOver($user, $memo),
+            // Pengembalian bahan tetap boleh dicatat setelah memo terkunci (Sudah diserahkan), selama booking-nya belum Selesai.
+            'can_record_return' => $memo->request_status !== MaterialMemo::REQ_REJECTED
+                && ! $memo->isBookingLocked() && ($user->isFullAccess() || $this->service->hasAnyStockAccess($user)),
             'can_request_more' => in_array($memo->request_status, [MaterialMemo::REQ_REJECTED, MaterialMemo::REQ_FULFILLED], true)
                 && ((int) $memo->created_by === (int) $user->id || $user->isFullAccess()),
         ];
@@ -86,13 +89,34 @@ class MaterialMemoRequestController extends Controller
         }
 
         $allowed = (int) $memo->created_by === (int) $user->id || $user->isFullAccess()
-            || $this->service->canApprove($user, $memo) || $this->service->canHandOver($user, $memo);
+            || $this->service->canApprove($user, $memo) || $this->service->canHandOver($user, $memo)
+            // Staf gudang (pemegang menu barang) selalu boleh melihat, termasuk saat putaran tambahan yang dicatat admin atau spv finance.
+            || $this->service->hasAnyStockAccess($user);
 
         if (! $allowed) {
             return response()->json(['success' => false, 'message' => 'Anda tidak terkait dengan memo ini.'], 403);
         }
 
         return response()->json(['success' => true, 'data' => $this->shape($memo, $user)]);
+    }
+
+    /** POST /api/staff/memos/{id}/close: pembuat memo (gudang) menutup memo langsungnya setelah pengambilan pertama. */
+    public function close(Request $request, int $id)
+    {
+        // Memo langsung (bukan pengajuan), jadi tidak lewat find() yang khusus memo pengajuan; hak menutup diperiksa di layanan (pembuatnya).
+        $memo = MaterialMemo::withoutGlobalScopes()->find($id);
+
+        if (! $memo) {
+            return response()->json(['success' => false, 'message' => 'Memo tidak ditemukan.'], 404);
+        }
+
+        try {
+            $memo = $this->service->closeDirect($memo, $request->user('api'));
+        } catch (InvalidArgumentException $e) {
+            return $this->fail($e);
+        }
+
+        return $this->ok('Memo ditutup. Pengambilan berikutnya perlu persetujuan admin atau spv finance.', $memo, $request);
     }
 
     /** Ajukan ulang setelah ditolak, atau minta tambahan setelah selesai diserahkan. Body: {"note": "..."} (wajib untuk tambahan). */

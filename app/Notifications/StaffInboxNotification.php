@@ -26,7 +26,25 @@ class StaffInboxNotification extends Notification
     /** @return list<string> */
     public function via(object $notifiable): array
     {
-        return ['database'];
+        $channels = ['database'];
+
+        // Push web hanya bila kunci VAPID terpasang dan akun ini punya perangkat yang berlangganan (PWA panel admin).
+        $service = app(\App\Services\WebPushService::class);
+
+        if ($service->enabled() && method_exists($notifiable, 'getKey') && $service->hasSubscriptions((int) $notifiable->getKey())) {
+            $channels[] = \App\Notifications\Channels\WebPushChannel::class;
+        }
+
+        return $channels;
+    }
+
+    /** @return array{title: string, body: string, url: string|null} */
+    public function toWebPush(object $notifiable): array
+    {
+        $actions = self::panelActions($this->title);
+        $url = collect($actions)->pluck('url')->filter()->first();
+
+        return ['title' => $this->title, 'body' => $this->body, 'url' => $url];
     }
 
     /** @return array<string, mixed> */

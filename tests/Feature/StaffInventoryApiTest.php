@@ -119,22 +119,6 @@ class StaffInventoryApiTest extends TestCase
         $this->assertTrue($this->staff('kasir')->hasModuleAction(\App\Filament\Resources\InventoryItemResource::class, 'update', false));
     }
 
-    public function test_an_in_or_out_movement_respects_the_store_that_owns_the_roll(): void
-    {
-        $scroll = $this->scroll('GLN-B', $this->storeB, 'allocated', 15, 15);
-        $this->item('INV-1', 'Film Alpha', $scroll, 'out');
-
-        $this->api($this->staff('kasir', $this->storeA))->postJson('/api/staff/inventory/INV-1/movement', ['type' => 'in'])
-            ->assertForbidden()
-            ->assertJsonPath('message', 'Kode gulungan ini teralokasi ke toko lain.');
-        $this->assertSame('allocated', $scroll->fresh()->status, 'Alokasi toko B tidak boleh dikosongkan staf toko A.');
-        $this->assertSame($this->storeB->id, $scroll->fresh()->store_id);
-        $this->assertSame('out', InventoryItem::where('code', 'INV-1')->value('status'));
-
-        $this->api($this->staff('kasir', $this->storeB))->postJson('/api/staff/inventory/INV-1/movement', ['type' => 'in'])->assertSuccessful();
-        $this->assertSame('unallocated', $scroll->fresh()->status);
-    }
-
     // ------------------------------------------------------------- pencarian & detail
 
     public function test_search_finds_by_name_code_or_the_scroll_code(): void
@@ -223,71 +207,20 @@ class StaffInventoryApiTest extends TestCase
 
     // ------------------------------------------------------------- keluar / masuk
 
-    public function test_staff_out_and_in_are_tagged_with_their_own_store_and_sync_the_roll(): void
+    public function test_the_app_can_no_longer_record_in_or_out_movements(): void
     {
         $scroll = $this->scroll('GLN-1', null, 'unallocated');
-        $item = $this->item('INV-1', 'Film Alpha', $scroll);
-        $user = $this->staff('kasir', $this->storeA);
+        $this->item('INV-1', 'Film Alpha', $scroll);
 
-        $this->api($user)->postJson('/api/staff/inventory/INV-1/movement', ['type' => 'out', 'note' => 'Untuk toko', 'store_id' => $this->storeB->id])
-            ->assertSuccessful()
-            ->assertJsonPath('message', 'Barang keluar berhasil dicatat.')
-            ->assertJsonPath('data.status', 'out');
+        foreach (['kasir', 'store_manager', 'super_admin'] as $role) {
+            $this->api($this->staff($role, $this->storeA))->postJson('/api/staff/inventory/INV-1/movement', ['type' => 'out', 'store_id' => $this->storeB->id])
+                ->assertForbidden()
+                ->assertJsonPath('message', 'Pencatatan masuk dan keluar produk PPF/WF sekarang hanya lewat panel admin.');
+        }
 
-        $movement = InventoryMovement::firstOrFail();
-        $this->assertSame($this->storeA->id, $movement->destination_store_id, 'Staff biasa: toko dari akunnya, kiriman store_id diabaikan.');
-        $this->assertSame($user->id, $movement->user_id);
-        $this->assertSame($this->storeA->id, $movement->store_id, 'Toko pencatat tersimpan.');
-        $scroll = $scroll->fresh();
-        $this->assertSame(['allocated', $this->storeA->id], [$scroll->status, $scroll->store_id]);
-
-        $this->api($user)->postJson('/api/staff/inventory/INV-1/movement', ['type' => 'in'])
-            ->assertSuccessful()
-            ->assertJsonPath('data.status', 'in_stock');
-        $this->assertSame($this->storeA->id, InventoryMovement::where('type', 'in')->firstOrFail()->store_id, 'Masuk juga mencatat toko pencatat.');
+        $this->assertSame(0, InventoryMovement::count());
         $this->assertSame('unallocated', $scroll->fresh()->status);
-    }
-
-    public function test_an_impossible_transition_is_refused(): void
-    {
-        $this->item('INV-1');
-        $user = $this->staff();
-
-        $this->api($user)->postJson('/api/staff/inventory/INV-1/movement', ['type' => 'in'])
-            ->assertStatus(422)
-            ->assertJsonPath('message', 'Barang ini sudah tercatat ada di gudang (in_stock).');
-
-        $this->api($user)->postJson('/api/staff/inventory/INV-1/movement', ['type' => 'out'])->assertSuccessful();
-        $this->api($user)->postJson('/api/staff/inventory/INV-1/movement', ['type' => 'out'])
-            ->assertStatus(422)
-            ->assertJsonPath('message', 'Barang ini sudah tercatat keluar sebelumnya.');
-        $this->assertSame(1, InventoryMovement::count());
-    }
-
-    public function test_full_access_must_choose_a_destination_store_for_an_out(): void
-    {
-        $this->item('INV-1');
-        $admin = $this->staff('super_admin');
-
-        $this->api($admin)->postJson('/api/staff/inventory/INV-1/movement', ['type' => 'out'])
-            ->assertStatus(422)
-            ->assertJsonPath('message', 'Pilih toko tujuan dulu.');
-        $this->assertSame(0, InventoryMovement::count());
-
-        $this->api($admin)->postJson('/api/staff/inventory/INV-1/movement', ['type' => 'out', 'store_id' => $this->storeB->id])->assertSuccessful();
-        $this->assertSame($this->storeB->id, InventoryMovement::firstOrFail()->destination_store_id);
-    }
-
-    public function test_movement_validation_and_unknown_items(): void
-    {
-        $this->item('INV-1');
-        $user = $this->staff();
-
-        $this->api($user)->postJson('/api/staff/inventory/INV-1/movement', ['type' => 'hilang'])->assertStatus(422)->assertJsonValidationErrors('type');
-        $this->api($user)->postJson('/api/staff/inventory/INV-1/movement', ['type' => 'out', 'note' => str_repeat('a', 501)])->assertStatus(422)->assertJsonValidationErrors('note');
-        $this->api($this->staff('super_admin'))->postJson('/api/staff/inventory/INV-1/movement', ['type' => 'out', 'store_id' => 99999])->assertStatus(422)->assertJsonValidationErrors('store_id');
-        $this->api($user)->postJson('/api/staff/inventory/NOPE/movement', ['type' => 'out'])->assertNotFound();
-        $this->assertSame(0, InventoryMovement::count());
+        $this->assertSame('in_stock', InventoryItem::where('code', 'INV-1')->value('status'));
     }
 
     // ------------------------------------------------------------- pemakaian meter

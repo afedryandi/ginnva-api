@@ -33,6 +33,18 @@ class MaterialMemoItem extends Model
         'meters_used'  => 'decimal:2',
     ];
 
+    protected static function booted(): void
+    {
+        // Memo buatan gudang sendiri: store manager diberi tahu saat barang pertamanya dicatat (lihat MaterialMemoRequestService).
+        static::created(function (MaterialMemoItem $item) {
+            $memo = $item->memo;
+
+            if ($memo && ! $memo->isRequestFlow()) {
+                app(\App\Services\MaterialMemoRequestService::class)->notifyDirectMemoItems($memo, $item);
+            }
+        });
+    }
+
     public function memo(): BelongsTo
     {
         return $this->belongsTo(MaterialMemo::class, 'material_memo_id');

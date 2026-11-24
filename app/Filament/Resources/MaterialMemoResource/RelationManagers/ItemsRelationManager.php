@@ -510,7 +510,8 @@ class ItemsRelationManager extends RelationManager
                     }),
 
                 Tables\Actions\Action::make('correct_return')
-                    ->hidden(fn () => ! \App\Filament\Resources\MaterialMemoResource::canEdit($this->getOwnerRecord()))
+                    // Koreksi hanya oleh akses penuh (2026-11-23).
+                    ->hidden(fn () => ! (auth()->user()?->isFullAccess() ?? false) || ! \App\Filament\Resources\MaterialMemoResource::canEdit($this->getOwnerRecord()))
                     ->label('Koreksi Pengembalian')
                     ->icon('heroicon-o-arrow-path')
                     ->color('warning')
@@ -553,7 +554,7 @@ class ItemsRelationManager extends RelationManager
 
                 Tables\Actions\Action::make('edit_qty')
                     // Mengubah stok lewat memo butuh izin Ubah pada menu Memo (akun yang hanya boleh melihat tidak mendapat tombolnya).
-                    ->hidden(fn () => ! \App\Filament\Resources\MaterialMemoResource::canHandoverEdit($this->getOwnerRecord()))
+                    ->hidden(fn () => ! (auth()->user()?->isFullAccess() ?? false) || ! \App\Filament\Resources\MaterialMemoResource::canHandoverEdit($this->getOwnerRecord()))
                     ->label('Koreksi Jumlah')
                     ->icon('heroicon-o-pencil')
                     ->color('warning')

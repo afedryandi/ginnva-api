@@ -160,10 +160,10 @@ class LeaveRequestResourceTest extends TestCase
             ->call('create')->assertHasFormErrors(['end_date']);
 
         Livewire::test(CreateLeaveRequest::class)
-            ->fillForm($this->form($newcomer, ['type' => 'sakit', 'end_date' => now()->addDays(3)->toDateString()]))
+            ->fillForm($this->form($newcomer, ['type' => 'izin', 'end_date' => now()->addDays(3)->toDateString()]))
             ->call('create')->assertHasNoFormErrors();
 
-        $this->assertSame(1, LeaveRequest::count(), 'Sakit tidak memotong jatah cuti.');
+        $this->assertSame(1, LeaveRequest::count(), 'Izin tidak memotong jatah cuti.');
     }
 
     public function test_create_locked_rechecks_overlap_and_quota_inside_the_lock(): void
@@ -402,7 +402,7 @@ class LeaveRequestResourceTest extends TestCase
         $employee = $this->user('kasir');
         $day = now()->subDays(2)->toDateString();
         $alpha = Attendance::create(['user_id' => $employee->id, 'store_id' => $this->store->id, 'date' => $day, 'entry_type' => 'alpha']);
-        $past = $this->form($employee, ['type' => 'sakit', 'start_date' => $day, 'end_date' => $day]);
+        $past = $this->form($employee, ['type' => 'izin', 'start_date' => $day, 'end_date' => $day]);
 
         $this->actingAs($this->user('store_manager'), 'web');
         Livewire::test(CreateLeaveRequest::class)->fillForm($past)->call('create')->assertHasFormErrors(['start_date']);
@@ -415,7 +415,7 @@ class LeaveRequestResourceTest extends TestCase
         $this->mock(PushNotificationService::class, fn ($mock) => $mock->shouldReceive('sendToUsers')->once());
         Livewire::test(ListLeaveRequests::class)->callTableAction('approve', $request);
 
-        $this->assertSame('leave', $alpha->fresh()->entry_type, 'Sakit yang dicatat belakangan menghapus Alpha-nya.');
+        $this->assertSame('leave', $alpha->fresh()->entry_type, 'Izin yang dicatat belakangan menghapus Alpha-nya.');
     }
 
     public function test_full_access_users_are_notified_of_a_new_request_but_not_the_requester(): void
@@ -448,6 +448,26 @@ class LeaveRequestResourceTest extends TestCase
         $this->assertStringContainsString('Sisa jatah cuti', $html);
         $this->assertStringContainsString('Tanpa lampiran', $html);
         $this->assertStringContainsString('Budi Rekan (menunggu)', $html);
+    }
+
+    public function test_the_detail_action_is_available_for_decided_requests_too(): void
+    {
+        $this->actingAs($this->user('super_admin'), 'web');
+        $approved = $this->leave($this->user('kasir'), ['status' => 'approved', 'reason' => 'Acara nikahan adik', 'review_note' => 'Silakan']);
+        $rejected = $this->leave($this->user('kasir'), ['status' => 'rejected', 'review_note' => 'Jadwal penuh']);
+
+        Livewire::test(ListLeaveRequests::class)
+            ->assertTableActionVisible('detail', $approved)
+            ->assertTableActionVisible('detail', $rejected)
+            ->callTableAction('detail', $approved)
+            ->assertSee('Acara nikahan adik');
+
+        $method = new \ReflectionMethod(LeaveRequestResource::class, 'detailContext');
+        $method->setAccessible(true);
+        $html = (string) $method->invoke(null, $rejected->fresh());
+        $this->assertStringContainsString('Ditolak', $html);
+        $this->assertStringContainsString('Jadwal penuh', $html);
+        $this->assertStringContainsString('Tanpa lampiran', $html);
     }
 
     public function test_the_list_shows_duration_reason_and_attachment_columns(): void

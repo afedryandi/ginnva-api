@@ -621,7 +621,7 @@ class QuotationResource extends Resource
             ->recordClasses(fn (Quotation $record) => $record->status === 'new' && $record->created_at?->lt(now()->subHours(24)) ? 'cu-row-late' : null)
             ->emptyStateIcon('heroicon-o-inbox')
             ->emptyStateHeading('Belum ada lead')
-            ->emptyStateDescription('Permintaan penawaran dari website, aplikasi, dan input staf akan muncul di sini.')
+            ->emptyStateDescription('Permintaan penawaran dari website, aplikasi, dan input staff akan muncul di sini.')
             ->paginated([10, 25, 50])
             ->defaultPaginationPageOption(25)
             // 'sort_priority' dihitung di getEloquentQuery(): lead 'new' selalu di atas (yang paling lama menunggu paling atas),

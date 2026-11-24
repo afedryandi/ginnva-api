@@ -16,6 +16,7 @@ class RawMaterialBatch extends Model
         'is_adjustment',
         'is_restoration',
         'created_by',
+        'stock_batch_id',
     ];
 
     protected $casts = [
@@ -26,6 +27,11 @@ class RawMaterialBatch extends Model
         'is_adjustment' => 'boolean',
         'is_restoration' => 'boolean',
     ];
+
+    public function stockBatch(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(StockBatch::class);
+    }
 
     /**
      * Nilai stok batch: sisa x harga beli batch itu sendiri; kalau batch tidak punya harga (mis. batch hasil

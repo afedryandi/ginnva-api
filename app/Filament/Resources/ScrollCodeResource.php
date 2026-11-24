@@ -122,7 +122,7 @@ class ScrollCodeResource extends Resource
             ->orWhereColumn('warranties.roll_number_side_rear', 'scroll_codes.code');
 
         $query = parent::getEloquentQuery()
-            ->with('inventoryItem:id,scroll_code_id,code')
+            ->with(['inventoryItem:id,scroll_code_id,code', 'stockBatch:id,batch_number'])
             ->select('scroll_codes.*')
             ->addSelect([
                 'warranty_numbers' => \App\Models\Warranty::query()->selectRaw("GROUP_CONCAT(DISTINCT warranty_code ORDER BY warranty_code SEPARATOR ', ')")->where($rollMatch),
@@ -271,6 +271,14 @@ class ScrollCodeResource extends Resource
                         ? InventoryItemResource::getUrl('edit', ['record' => $record->inventoryItem->id])
                         : null),
 
+                Tables\Columns\TextColumn::make('stockBatch.batch_number')
+                    ->label('Batch')
+                    ->placeholder('—')
+                    ->badge()
+                    ->color('gray')
+                    ->searchable()
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('store.name')
                     ->label('Toko')
                     ->placeholder('—')
@@ -377,6 +385,11 @@ class ScrollCodeResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                Tables\Filters\SelectFilter::make('stock_batch_id')
+                    ->label('Batch Penerimaan')
+                    ->relationship('stockBatch', 'batch_number', fn ($query) => $query->where('type', \App\Models\StockBatch::TYPE_PPF_WF)->orderByDesc('id'))
+                    ->searchable(),
+
                 Tables\Filters\SelectFilter::make('status')
                     ->options([
                         'unallocated' => 'Belum dialokasikan',
@@ -518,8 +531,12 @@ class ScrollCodeResource extends Resource
                         // UNIQUE constraint di DB, tapi exception-nya
                         // sebelumnya tidak ketangkap di sini sama sekali,
                         // jadi race itu muncul sebagai error 500 mentah.
+                        // Batch Penerimaan: tiap gulungan yang didaftarkan sendiri membuka satu batch (nomor otomatis).
+                        $batch = \App\Models\StockBatch::open(\App\Models\StockBatch::TYPE_PPF_WF, ['created_by' => auth()->id()]);
+
                         try {
                             ScrollCode::create([
+                                'stock_batch_id'  => $batch->id,
                                 'code'            => $code,
                                 'film_product_id' => $data['film_product_id'],
                                 'max_usage'       => $data['max_usage'] ?? null,
@@ -529,6 +546,8 @@ class ScrollCodeResource extends Resource
                                 'status'          => 'unallocated',
                             ]);
                         } catch (QueryException $e) {
+                            $batch->delete();
+
                             Notification::make()
                                 ->title('Kode gulungan sudah terdaftar')
                                 ->body("Kode \"{$code}\" baru saja ditambahkan oleh proses lain.")

@@ -39,7 +39,7 @@ class SpkResource extends Resource
 
     protected static ?string $modelLabel = 'SPK';
 
-    protected static ?string $pluralModelLabel = 'Surat Perintah Kerja';
+    protected static ?string $pluralModelLabel = 'SPK';
 
     public static function canViewAny(): bool
     {

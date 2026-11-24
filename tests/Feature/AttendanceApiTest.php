@@ -403,11 +403,16 @@ class AttendanceApiTest extends TestCase
         $this->requestLeave(['type' => 'cuti', 'start_date' => '2026-10-06', 'end_date' => '2026-10-06'])
             ->assertStatus(422)->assertJsonValidationErrors('start_date');
 
-        $this->requestLeave(['type' => 'sakit', 'start_date' => '2026-10-03', 'end_date' => '2026-10-03'])
+        $letter = \Illuminate\Http\UploadedFile::fake()->create('surat.pdf', 100, 'application/pdf');
+
+        // Sakit: hari H dan besoknya saja (2026-11-24); lusa dan sebelumnya ditolak, dan lampiran surat dokter wajib sejak hari pertama.
+        $this->requestLeave(['type' => 'sakit', 'start_date' => '2026-10-05', 'end_date' => '2026-10-05', 'document' => $letter])
             ->assertStatus(422)->assertJsonValidationErrors('start_date');
 
-        // Satu hari saja: sakit beberapa hari wajib melampirkan surat dokter, itu bukan yang diuji di sini.
-        $this->requestLeave(['type' => 'sakit', 'start_date' => '2026-10-04', 'end_date' => '2026-10-04'])
+        $this->requestLeave(['type' => 'sakit', 'start_date' => '2026-10-06', 'end_date' => '2026-10-06'])
+            ->assertStatus(422)->assertJsonPath('message', fn ($m) => str_contains($m, 'wajib melampirkan'));
+
+        $this->requestLeave(['type' => 'sakit', 'start_date' => '2026-10-06', 'end_date' => '2026-10-06', 'document' => $letter])
             ->assertStatus(201)->assertJsonPath('leave_request.status', 'pending');
     }
 
@@ -439,7 +444,7 @@ class AttendanceApiTest extends TestCase
         $newcomer = $this->makeStaff($this->store, ['join_date' => '2026-10-01']);
         $this->requestLeave(['type' => 'cuti'], $newcomer)->assertStatus(422);
 
-        $this->requestLeave(['type' => 'sakit', 'end_date' => '2026-10-12'], $newcomer)->assertStatus(201); // sakit/izin tidak memotong jatah
+        $this->requestLeave(['type' => 'izin', 'end_date' => '2026-10-12'], $newcomer)->assertStatus(201); // izin tidak memotong jatah
     }
 
     public function test_only_my_own_pending_requests_can_be_cancelled(): void

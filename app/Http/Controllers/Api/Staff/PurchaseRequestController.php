@@ -57,7 +57,7 @@ class PurchaseRequestController extends Controller
         $perPage = 50;
 
         $query = PurchaseRequest::query()
-            ->with(['requester:id,name', 'reviewer:id,name'])
+            ->with(['requester:id,name', 'reviewer:id,name', 'group:id,group_number'])
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
             ->when(in_array($request->query('status'), ['pending', 'approved', 'rejected', 'fulfilled', 'cancelled'], true), fn ($q) => $q->where('status', $request->query('status')))
             ->orderByDesc('created_at');
@@ -96,6 +96,11 @@ class PurchaseRequestController extends Controller
                 'success' => false,
                 'message' => 'Akun ini belum terhubung ke toko mana pun.',
             ], 422);
+        }
+
+        // Banyak barang dalam satu permohonan (2026-11-23): bentuk baru memakai larik `items`. Bentuk lama (satu barang) tetap dilayani apa adanya.
+        if ($request->has('items')) {
+            return $this->storeGroup($request, $user);
         }
 
         $validator = Validator::make($request->all(), [
@@ -184,6 +189,47 @@ class PurchaseRequestController extends Controller
             'success' => true,
             'message' => 'Permohonan pembelian berhasil diajukan.',
             'data' => $this->transform($purchaseRequest, $user),
+        ], 201);
+    }
+
+    /** POST /api/staff/purchase-requests dengan `items`: satu nomor induk (PP-...), satu baris per barang. */
+    private function storeGroup(Request $request, $user)
+    {
+        $validator = Validator::make($request->all(), [
+            'items' => 'required|array|min:1|max:' . \App\Services\PurchaseRequestGroupService::MAX_LINES,
+            'items.*.item_type' => 'required|string',
+            'items.*.item_id' => 'nullable|integer',
+            'items.*.item_name' => 'nullable|string|max:255',
+            'items.*.unit' => 'nullable|string|max:30',
+            'items.*.quantity' => 'required|numeric|min:0.01|max:1000000',
+            'reason' => 'nullable|string|max:1000',
+            'store_id' => 'nullable|integer|exists:stores,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'message' => 'Data yang dikirim tidak valid.', 'errors' => $validator->errors()], 422);
+        }
+
+        try {
+            $group = app(\App\Services\PurchaseRequestGroupService::class)->submit(
+                $user,
+                $request->filled('store_id') ? (int) $request->store_id : null,
+                $request->reason,
+                $request->input('items'),
+            );
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        app(PurchaseRequestNotifier::class)->notifyNewGroup($group);
+
+        $group->load(['lines.requester:id,name', 'lines.reviewer:id,name', 'lines.group:id,group_number']);
+
+        return response()->json([
+            'success' => true,
+            'message' => $group->lines->count() > 1 ? "Permohonan {$group->group_number} berisi {$group->lines->count()} barang berhasil diajukan." : 'Permohonan pembelian berhasil diajukan.',
+            'group_number' => $group->group_number,
+            'data' => $group->lines->map(fn (PurchaseRequest $r) => $this->transform($r, $user))->values(),
         ], 201);
     }
 
@@ -330,6 +376,7 @@ class PurchaseRequestController extends Controller
 
             'id' => $r->id,
             'request_number' => $r->request_number,
+            'group_number' => $r->group?->group_number,
             'item_type' => $r->item_type,
             'item_name' => $r->item_name,
             'unit' => $r->unit,

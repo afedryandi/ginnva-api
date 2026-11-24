@@ -107,7 +107,7 @@ class PurchaseRequestResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery();
+        $query = parent::getEloquentQuery()->with('group:id,group_number');
         $user  = auth()->user();
 
         if ($user && ! $user->isFullAccess()) {
@@ -278,6 +278,15 @@ class PurchaseRequestResource extends Resource
                     ->label('No. Permohonan')
                     ->searchable()
                     ->weight('semibold'),
+
+                // Nomor induk (PP-...) bila permohonan diajukan bersama barang lain; kosong untuk permohonan satu barang dan data lama.
+                Tables\Columns\TextColumn::make('group.group_number')
+                    ->label('Permohonan Induk')
+                    ->placeholder('—')
+                    ->badge()
+                    ->color('gray')
+                    ->searchable()
+                    ->toggleable(),
 
                 Tables\Columns\TextColumn::make('item_name')
                     ->label('Barang')
@@ -629,6 +638,78 @@ class PurchaseRequestResource extends Resource
                     ->tooltip('Hapus')
                     ->visible(fn (PurchaseRequest $record) => auth()->user()?->isFullAccess()
                         && $record->status === 'pending'),
+            ])
+            // Keputusan sekaligus (2026-11-23): untuk permohonan banyak barang, pilih barisnya lalu setujui atau tolak bersama. Tiap baris tetap
+            // diputuskan lewat PurchaseRequestDecisionService (status dicek ulang pada baris yang dikunci); yang sudah diproses dilewati.
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\BulkAction::make('approve_selected')
+                        ->label('Setujui yang Dipilih')
+                        ->icon('heroicon-o-check-circle')
+                        ->color('success')
+                        ->visible(fn () => auth()->user()?->isFullAccess() ?? false)
+                        ->requiresConfirmation()
+                        ->modalDescription('Setiap baris disetujui sebesar jumlah yang diminta. Untuk menyetujui jumlah lebih kecil, setujui barisnya satu per satu.')
+                        ->deselectRecordsAfterCompletion()
+                        ->action(function (\Illuminate\Support\Collection $records) {
+                            $done = 0;
+                            $skipped = 0;
+
+                            foreach ($records as $record) {
+                                if ($record->status !== 'pending') {
+                                    $skipped++;
+
+                                    continue;
+                                }
+
+                                try {
+                                    app(\App\Services\PurchaseRequestDecisionService::class)->approve($record->id, auth()->user(), (float) $record->quantity);
+                                    $done++;
+                                } catch (\RuntimeException $e) {
+                                    $skipped++;
+                                }
+                            }
+
+                            Notification::make()
+                                ->title("{$done} permohonan disetujui")
+                                ->body($skipped > 0 ? "{$skipped} dilewati karena sudah diproses." : null)
+                                ->success()->send();
+                        }),
+
+                    Tables\Actions\BulkAction::make('reject_selected')
+                        ->label('Tolak yang Dipilih')
+                        ->icon('heroicon-o-x-circle')
+                        ->color('danger')
+                        ->visible(fn () => auth()->user()?->isFullAccess() ?? false)
+                        ->form([
+                            Forms\Components\Textarea::make('review_note')->label('Alasan Ditolak')->required()->rows(2),
+                        ])
+                        ->deselectRecordsAfterCompletion()
+                        ->action(function (\Illuminate\Support\Collection $records, array $data) {
+                            $done = 0;
+                            $skipped = 0;
+
+                            foreach ($records as $record) {
+                                if ($record->status !== 'pending') {
+                                    $skipped++;
+
+                                    continue;
+                                }
+
+                                try {
+                                    app(\App\Services\PurchaseRequestDecisionService::class)->reject($record->id, auth()->user(), (string) $data['review_note']);
+                                    $done++;
+                                } catch (\RuntimeException $e) {
+                                    $skipped++;
+                                }
+                            }
+
+                            Notification::make()
+                                ->title("{$done} permohonan ditolak")
+                                ->body($skipped > 0 ? "{$skipped} dilewati karena sudah diproses." : null)
+                                ->warning()->send();
+                        }),
+                ]),
             ])
             ->defaultSort('created_at', 'desc');
     }

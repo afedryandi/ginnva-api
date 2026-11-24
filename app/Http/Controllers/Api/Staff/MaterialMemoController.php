@@ -121,6 +121,19 @@ class MaterialMemoController extends Controller
         return $request->user('api')->hasModuleAction(\App\Filament\Resources\MaterialMemoResource::class, $action, false);
     }
 
+    /**
+     * Koreksi jumlah diambil dan koreksi pengembalian hanya oleh akses penuh (keputusan pemilik 2026-11-23): koreksi mengubah stok dan
+     * riwayat yang sudah tercatat, jadi tidak boleh dilakukan staf biasa. Mencatat pengambilan dan pengembalian awal tetap seperti biasa.
+     */
+    private function denyUnlessFullAccess(Request $request): ?\Illuminate\Http\JsonResponse
+    {
+        if (! $request->user('api')?->isFullAccess()) {
+            return response()->json(['success' => false, 'message' => 'Koreksi jumlah dan pengembalian memo hanya bisa dilakukan oleh akses penuh. Minta admin untuk mengoreksinya.'], 403);
+        }
+
+        return null;
+    }
+
     private function denyUnlessCan(Request $request, string $action): ?\Illuminate\Http\JsonResponse
     {
         if (! $this->can($request, $action)) {
@@ -454,7 +467,7 @@ class MaterialMemoController extends Controller
             return $this->forbiddenResponse();
         }
 
-        return response()->json(['success' => true, 'data' => $memo, 'request_status_label' => MaterialMemo::REQUEST_STATUS_LABELS[$memo->request_status] ?? null, 'can_modify' => $this->can($request, 'update') && ! $memo->isLocked(), 'is_locked' => $memo->isLocked()]);
+        return response()->json(['success' => true, 'data' => $memo, 'request_status_label' => MaterialMemo::REQUEST_STATUS_LABELS[$memo->request_status] ?? null, 'can_close' => app(\App\Services\MaterialMemoRequestService::class)->canCloseDirect($request->user('api'), $memo), 'can_modify' => $this->can($request, 'update') && ! $memo->isLocked(), 'can_correct' => (bool) $request->user('api')?->isFullAccess() && $this->can($request, 'update') && ! $memo->isLocked(), 'is_locked' => $memo->isLocked()]);
     }
 
     /**
@@ -785,6 +798,10 @@ class MaterialMemoController extends Controller
             return $denied;
         }
 
+        if ($denied = $this->denyUnlessFullAccess($request)) {
+            return $denied;
+        }
+
         $memoItem = MaterialMemoItem::where('material_memo_id', $memo->id)->find($itemId);
 
         if (! $memoItem) {
@@ -848,6 +865,10 @@ class MaterialMemoController extends Controller
         }
 
         if ($denied = $this->denyUnlessCan($request, 'update')) {
+            return $denied;
+        }
+
+        if ($denied = $this->denyUnlessFullAccess($request)) {
             return $denied;
         }
 

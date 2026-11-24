@@ -297,105 +297,16 @@ class InventoryController extends Controller
     }
 
     /**
-     * POST /api/staff/inventory/{code}/movement
-     *
-     * Catat 1 kejadian barang keluar/masuk untuk kardus dengan kode ini.
-     * Tidak ada kuantitas — 1 kardus = 1 unit, jadi cukup tipe (in/out) +
-     * catatan opsional. Transisi status yang tidak masuk akal (mis. catat
-     * "masuk" untuk barang yang sudah in_stock) divalidasi di
-     * InventoryItem::recordMovement().
-     *
-     * Toko tujuan diambil OTOMATIS dari store_id akun staff yang scan —
-     * tidak perlu pilih manual, dan sekarang SELALU dicatat terstruktur
-     * di kolom destination_store_id (bukan cuma dipakai buat sinkron
-     * status Kode Gulungan) — lihat InventoryItem::recordMovement().
-     * Cuma full-access (super_admin/direksi, tidak terikat 1 toko) yang
-     * wajib kirim store_id manual saat scan KELUAR APAPUN (bukan cuma
-     * yang punya kode gulungan lagi — SEBELUMNYA cuma diwajibkan untuk
-     * barang berkode gulungan, jadi barang PPF/WF polos yang di-scan
-     * keluar oleh full-access tidak pernah tercatat tujuannya); kalau
-     * tidak dikirim, request ditolak (bukan dibiarkan kosong diam-diam)
-     * supaya datanya tetap lengkap.
+     * DITUTUP (2026-11-23): pencatatan masuk/keluar produk PPF/WF dan alokasi gulungan hanya lewat panel admin (Produk PPF/WF), bukan
+     * aplikasi. Rutenya sengaja dipertahankan supaya aplikasi lama yang belum diperbarui menerima pesan yang jelas, bukan error 404 generik.
+     * Logika pergerakannya tetap ada di InventoryItem::recordMovement() dan dipakai panel.
      */
     public function storeMovement(Request $request, string $code)
     {
-        if ($denied = $this->denyUnlessWrite($request)) {
-            return $denied;
-        }
-
-        $validator = Validator::make($request->all(), [
-            'type' => 'required|in:in,out',
-            'note' => 'nullable|string|max:500',
-            'store_id' => 'nullable|exists:stores,id',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Data yang dikirim tidak valid.',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
-        $item = InventoryItem::where('code', $code)->first();
-
-        if (! $item) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Barang dengan kode ini tidak ditemukan.',
-            ], 404);
-        }
-
-        $user = $request->user('api');
-
-        // Gulungan yang sudah dialokasikan ke satu toko hanya boleh digerakkan staf toko itu atau akses penuh; tanpa ini staf toko lain
-        // bisa "mencatat masuk" dan mengosongkan alokasi gulungan toko lain.
-        if (! $this->canActOnScrollCode($item->scrollCode, $user)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Kode gulungan ini teralokasi ke toko lain.',
-            ], 403);
-        }
-
-        $storeId = $user->isFullAccess() ? $request->store_id : $user->store_id;
-
-        if (
-            $request->type === 'out'
-            && $user->isFullAccess()
-            && ! $request->filled('store_id')
-        ) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Pilih toko tujuan dulu.',
-            ], 422);
-        }
-
-        try {
-            $item->recordMovement($request->type, $user->id, $request->note, $storeId, $user->store_id);
-        } catch (\InvalidArgumentException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 422);
-        }
-
-        // ->fresh() SAJA tidak ikut memuat relasi movements (beda dari
-        // show() yang eksplisit ->with('movements')) — app mobile
-        // menimpa state layar pakai respons ini, jadi kalau movements
-        // tidak ikut dikirim, item.movements.length di app crash.
-        $item = $item->fresh();
-        $item->load([
-            'movements' => fn ($q) => $q->with(['user:id,name', 'destinationStore:id,name', 'store:id,name'])->limit(20),
-            'scrollCode.filmProduct',
-            'scrollCode.store:id,name',
-            'scrollCode.usages' => fn ($q) => $q->with(['user:id,name', 'spk:id,spk_number'])->limit(20),
-        ]);
-
         return response()->json([
-            'success' => true,
-            'message' => $request->type === 'in' ? 'Barang masuk berhasil dicatat.' : 'Barang keluar berhasil dicatat.',
-            'data' => $item,
-        ]);
+            'success' => false,
+            'message' => 'Pencatatan masuk dan keluar produk PPF/WF sekarang hanya lewat panel admin.',
+        ], 403);
     }
 
     /**

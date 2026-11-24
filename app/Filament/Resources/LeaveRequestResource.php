@@ -175,7 +175,7 @@ class LeaveRequestResource extends Resource
                         ->helperText(function (Forms\Get $get, ?LeaveRequest $record) {
                             $leaveType = $get('leave_type_id') ? \App\Models\LeaveType::find($get('leave_type_id')) : null;
                             if (! $leaveType) return null;
-                            $rule = $leaveType->ruleSummary();
+                            $rule = $leaveType->ruleSummary(withDocument: false);
                             $userId = $get('user_id');
                             $user = $userId ? User::find($userId) : null;
                             if (! $leaveType->deducts_annual_quota || ! $user) return $rule ?: null;
@@ -355,6 +355,24 @@ class LeaveRequestResource extends Resource
                     ->visible(fn () => auth()->user()?->isFullAccess()),
             ])
             ->actions([
+                // Detail untuk SEMUA status (2026-11-23): sebelumnya lampiran hanya terjangkau lewat modal Setujui, sehingga pengajuan
+                // yang sudah disetujui/ditolak tidak punya jalan untuk melihat lampirannya.
+                Tables\Actions\Action::make('detail')
+                    ->label('Detail')
+                    ->icon('heroicon-o-eye')
+                    ->iconButton()
+                    ->tooltip('Lihat detail dan lampiran')
+                    ->color('gray')
+                    ->modalHeading(fn (LeaveRequest $record) => "Detail $record->request_number")
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Tutup')
+                    ->form(fn (LeaveRequest $record) => [
+                        Forms\Components\Placeholder::make('context')
+                            ->label('Pengajuan')
+                            ->content(static::detailContext($record))
+                            ->columnSpanFull(),
+                    ]),
+
                 Tables\Actions\Action::make('approve')
                     ->label('Setujui')
                     ->icon('heroicon-o-check-circle')
@@ -460,7 +478,28 @@ class LeaveRequestResource extends Resource
                     ->visible(fn (LeaveRequest $record) => auth()->user()?->isFullAccess()
                         && $record->status === 'pending'),
             ])
+            ->recordAction('detail')
             ->defaultSort('created_at', 'desc');
+    }
+
+    /** Isi modal Detail: status dan catatan keputusan di atas ringkasan yang sama dengan modal Setujui. */
+    private static function detailContext(LeaveRequest $record): \Illuminate\Support\HtmlString
+    {
+        $e = fn (?string $v) => e((string) $v);
+        $status = match ($record->status) {
+            'pending' => 'Menunggu Persetujuan',
+            'approved' => 'Disetujui',
+            'rejected' => 'Ditolak',
+            'cancelled' => $record->isRevoked() ? 'Dicabut Admin' : 'Dibatalkan Sendiri',
+            default => (string) $record->status,
+        };
+
+        $head = '<strong>Status:</strong> ' . $e($status);
+        if (filled($record->review_note)) {
+            $head .= '<br><strong>Catatan keputusan:</strong> ' . $e($record->review_note);
+        }
+
+        return new \Illuminate\Support\HtmlString($head . '<br><br>' . static::approvalContext($record)->toHtml());
     }
 
     /** Ringkasan untuk penyetuju: alasan, durasi, sisa jatah, lampiran, dan rekan se-toko yang juga cuti di tanggal yang sama. */

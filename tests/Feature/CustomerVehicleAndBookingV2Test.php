@@ -218,14 +218,14 @@ class CustomerVehicleAndBookingV2Test extends TestCase
     {
         $vehicleId = $this->addVehicle()->json('data.id');
 
-        $response = $this->as()->postJson('/api/customer/bookings', $this->bookingPayload($vehicleId, ['services' => ['detailing', 'ppf'], 'notes' => 'Mohon hati-hati']))
+        $response = $this->as()->postJson('/api/customer/bookings', $this->bookingPayload($vehicleId, ['services' => ['ppf'], 'notes' => 'Mohon hati-hati']))
             ->assertStatus(201);
 
         $booking = Booking::findOrFail($response->json('data.id'));
 
-        $this->assertSame('Pelindung Cat (PPF), Detailing', $booking->service_type);
+        $this->assertSame('Pelindung Cat (PPF)', $booking->service_type);
         $this->assertTrue((bool) $booking->product_ppf);
-        $this->assertTrue((bool) $booking->product_detailing);
+        $this->assertFalse((bool) $booking->product_detailing);
         $this->assertFalse((bool) $booking->product_kaca_film);
         $this->assertFalse((bool) $booking->product_premium_wash);
         $this->assertSame($vehicleId, $booking->customer_vehicle_id);
@@ -272,9 +272,29 @@ class CustomerVehicleAndBookingV2Test extends TestCase
     {
         $vehicleId = $this->addVehicle()->json('data.id');
 
-        $this->as()->postJson('/api/customer/bookings', $this->bookingPayload($vehicleId, ['services' => ['ppf', 'detailing']]))->assertStatus(201);
-        $this->as()->postJson('/api/customer/bookings', $this->bookingPayload($vehicleId, ['services' => ['detailing', 'ppf']]))->assertStatus(422); // urutan beda, layanan sama
-        $this->as()->postJson('/api/customer/bookings', $this->bookingPayload($vehicleId, ['services' => ['ppf']]))->assertStatus(201); // layanan berbeda
+        $this->as()->postJson('/api/customer/bookings', $this->bookingPayload($vehicleId, ['services' => ['kaca_film', 'detailing']]))->assertStatus(201);
+        $this->as()->postJson('/api/customer/bookings', $this->bookingPayload($vehicleId, ['services' => ['detailing', 'kaca_film']]))->assertStatus(422); // urutan beda, layanan sama
+        $this->as()->postJson('/api/customer/bookings', $this->bookingPayload($vehicleId, ['services' => ['kaca_film']]))->assertStatus(201); // layanan berbeda
+    }
+
+    public function test_ppf_already_includes_detailing_and_premium_wash_so_they_are_dropped_when_sent_together(): void
+    {
+        $vehicleId = $this->addVehicle()->json('data.id');
+
+        $id = $this->as()->postJson('/api/customer/bookings', $this->bookingPayload($vehicleId, ['services' => ['detailing', 'ppf', 'premium_wash']]))
+            ->assertStatus(201)->json('data.id');
+
+        $booking = Booking::findOrFail($id);
+        $this->assertSame('Pelindung Cat (PPF)', $booking->service_type);
+        $this->assertTrue((bool) $booking->product_ppf);
+        $this->assertFalse((bool) $booking->product_detailing);
+        $this->assertFalse((bool) $booking->product_premium_wash);
+
+        // Kaca Film boleh ditambah Detailing/Premium Wash sebagai layanan tambahan.
+        $other = $this->as()->postJson('/api/customer/bookings', $this->bookingPayload($vehicleId, ['services' => ['kaca_film', 'detailing', 'premium_wash']]))
+            ->assertStatus(201)->json('data.id');
+        $kept = Booking::findOrFail($other);
+        $this->assertTrue((bool) $kept->product_kaca_film && (bool) $kept->product_detailing && (bool) $kept->product_premium_wash);
     }
 
     public function test_the_old_payload_without_a_vehicle_still_works(): void

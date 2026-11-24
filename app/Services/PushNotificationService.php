@@ -126,6 +126,29 @@ class PushNotificationService
     }
 
     /**
+     * Lingkungan pengembangan di laptop: APP_ENV=local DAN APP_URL menunjuk ke mesin lokal (localhost, 127.0.0.1, ::1, *.test, *.localhost). Server
+     * production yang salah mengisi APP_ENV=local tetap berjalan normal karena APP_URL-nya alamat asli, sehingga push tidak ikut terhenti.
+     */
+    public static function isLocalDevelopment(): bool
+    {
+        if (! app()->environment('local')) {
+            return false;
+        }
+
+        $host = strtolower((string) parse_url((string) config('app.url'), PHP_URL_HOST));
+
+        return in_array($host, ['localhost', '127.0.0.1', '::1', '[::1]'], true)
+            || str_ends_with($host, '.test')
+            || str_ends_with($host, '.localhost');
+    }
+
+    /** Boleh mengirim push: bukan lingkungan lokal, atau sengaja dinyalakan lewat PUSH_ALLOW_LOCAL=true. */
+    public static function sendingAllowed(): bool
+    {
+        return ! static::isLocalDevelopment() || (bool) config('services.push.allow_local', false);
+    }
+
+    /**
      * Kirim push mentah ke daftar token, dengan tracking sent/failed —
      * dipakai internal oleh method-method di atas (yang cuma "fire and
      * forget", tidak peduli hasilnya), TAPI juga dibuat public supaya
@@ -139,6 +162,14 @@ class PushNotificationService
      */
     public function pushToTokens(array $tokens, string $title, string $body, array $data = []): array
     {
+        // Pengaman (2026-11-22): API di laptop memegang salinan token ponsel asli dari backup, dan push tidak butuh kredensial server (Expo),
+        // jadi tanpa ini uji lokal bisa mengirim notifikasi ke karyawan sungguhan. Semua pengirim push lewat sini.
+        if (! static::sendingAllowed()) {
+            Log::info('[Expo Push] Dilewati: lingkungan pengembangan lokal. Isi PUSH_ALLOW_LOCAL=true di .env lokal untuk benar-benar mengirim.', ['jumlah_token' => count($tokens), 'judul' => $title]);
+
+            return ['sent' => 0, 'failed' => 0];
+        }
+
         $sent = 0;
         $failed = 0;
 

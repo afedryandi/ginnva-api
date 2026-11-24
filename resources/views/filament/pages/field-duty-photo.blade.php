@@ -50,9 +50,11 @@
             const video = this.$refs.video;
             if (! video || ! video.videoWidth) { return; }
             const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            canvas.getContext('2d').drawImage(video, 0, 0);
+            // Foto dikecilkan (sisi terpanjang 1280 px) supaya hemat memori, kuota, dan penyimpanan server.
+            const scale = Math.min(1, 1280 / Math.max(video.videoWidth, video.videoHeight));
+            canvas.width = Math.round(video.videoWidth * scale);
+            canvas.height = Math.round(video.videoHeight * scale);
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
             canvas.toBlob((blob) => {
                 if (! blob) { this.camError = 'Gagal mengambil foto, coba lagi.'; return; }
                 if (this.previewUrl) { URL.revokeObjectURL(this.previewUrl); }
@@ -65,7 +67,7 @@
                     () => { this.uploading = false; },
                     () => { this.uploading = false; this.previewUrl = null; this.camError = 'Foto gagal diunggah, coba lagi.'; }
                 );
-            }, 'image/jpeg', 0.9);
+            }, 'image/jpeg', 0.7);
         }
     }" x-on:beforeunload.window="closeCam()">
         <div class="pu-stack">
@@ -111,7 +113,7 @@
                 </div>
 
                 <div class="pu-row">
-                    <x-filament::button wire:click="submitPhoto" x-bind:disabled="uploading || ! $wire.photo">{{ $isEnd ? 'Kirim Foto Akhir' : 'Kirim Foto Awal' }}</x-filament::button>
+                    <x-filament::button wire:click="submitPhoto" x-bind:disabled="uploading || ! $wire.photo">{{ $isEnd ? 'Absen Keluar Lokasi' : 'Absen Masuk Lokasi' }}</x-filament::button>
                 </div>
             @endif
         </div>

@@ -233,9 +233,18 @@ class AttendanceController extends Controller
             ->orderByDesc('date')
             ->get();
 
+        // Semua tanggal bulan itu (sampai hari ini) tanpa yang lompat: catatan absen, atau keterangan Libur / Belum absen / Tanpa catatan.
+        $days = app(\App\Services\AttendanceCalendar::class)->days($request->user('api'), $month);
+
         return response()->json([
             'success' => true,
             'attendances' => $attendances->map(fn (Attendance $a) => $this->transform($a)),
+            'days' => $days->map(fn (array $d) => [
+                'date' => $d['date']->toDateString(),
+                'kind' => $d['kind'],
+                'label' => $d['label'],
+                'attendance' => $d['attendance'] ? $this->transform($d['attendance']) : null,
+            ])->values(),
             // Total menit telat bulan berjalan — acuan cepat buat app
             // tampilkan sisa toleransi tanpa staff harus jumlahkan manual.
             'total_late_minutes' => $attendances->sum('late_minutes'),
@@ -315,19 +324,14 @@ class AttendanceController extends Controller
             ], 422);
         }
 
-        $existingAttendance = Attendance::where('user_id', $user->id)->where('date', $date->toDateString())->first();
-
         try {
-            $correctionRequest = app(AttendanceCorrectionService::class)->submit([
-                'attendance_id' => $existingAttendance?->id,
-                'user_id'       => $user->id,
-                'store_id'      => $user->store_id,
-                'date'          => $date->toDateString(),
-                'entry_type'    => 'manual',
-                'clock_in_at'   => $request->filled('clock_in_at') ? $date->copy()->setTimeFromTimeString($request->clock_in_at) : null,
-                'clock_out_at'  => $request->filled('clock_out_at') ? $date->copy()->setTimeFromTimeString($request->clock_out_at) : null,
-                'reason'        => $request->reason,
-            ], $user->id);
+            $correctionRequest = app(AttendanceCorrectionService::class)->submitForStaff(
+                $user,
+                $date->toDateString(),
+                $request->input('clock_in_at'),
+                $request->input('clock_out_at'),
+                (string) $request->reason,
+            );
         } catch (\RuntimeException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
@@ -453,90 +457,20 @@ class AttendanceController extends Controller
 
         $user = $request->user('api');
 
-        if (! $user->store_id) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Akun ini belum terhubung ke toko mana pun, tidak bisa mengajukan izin.',
-            ], 422);
-        }
-
-        $dayCount = Carbon::parse($request->start_date)->diffInDays(Carbon::parse($request->end_date)) + 1;
-
-        $leaveType = $request->filled('leave_type_id') ? LeaveType::find($request->leave_type_id) : LeaveType::forCategory((string) $request->type);
-        $maxDays = $leaveType?->max_days ?: LeaveRequest::MAX_DURATION_DAYS;
-
-        $startDay = Carbon::parse($request->start_date)->startOfDay();
-
-        if ($startDay->lt(today())) {
-            $category = $leaveType?->category ?? (string) $request->type;
-
-            if ($category !== 'sakit') {
-                throw ValidationException::withMessages(['start_date' => 'Izin dan cuti harus diajukan sebelum hari H.']);
-            }
-
-            if ($startDay->lt(today()->subDays(LeaveRequest::SICK_BACKDATE_DAYS))) {
-                throw ValidationException::withMessages(['start_date' => 'Sakit susulan paling lama ' . LeaveRequest::SICK_BACKDATE_DAYS . ' hari ke belakang. Untuk yang lebih lama, hubungi admin.']);
-            }
-        }
-
-        if ($dayCount > $maxDays) {
-            return response()->json([
-                'success' => false,
-                'message' => $leaveType?->max_days
-                    ? "{$leaveType->name} maksimal {$leaveType->max_days} hari."
-                    : 'Durasi pengajuan maksimal ' . LeaveRequest::MAX_DURATION_DAYS . ' hari. Hubungi admin untuk kasus khusus di luar itu.',
-            ], 422);
-        }
-
-        if (LeaveRequest::hasOverlap($user, $request->start_date, $request->end_date)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Sudah ada pengajuan izin/cuti lain yang tanggalnya tumpang tindih dengan rentang ini.',
-            ], 422);
-        }
-
-        if ($leaveType ? $leaveType->deducts_annual_quota : $request->type === 'cuti') {
-            $remaining = LeaveRequest::remainingCutiFor($user, Carbon::parse($request->start_date)->year);
-            if ($dayCount > $remaining) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Sisa jatah cuti tahun ini tinggal {$remaining} hari, tidak cukup untuk {$dayCount} hari yang diajukan.",
-                ], 422);
-            }
-        }
-
-        // Bug diperbaiki 2026-09-27 (audit ulang Izin & Cuti) -- validasi
-        // di atas (overlap/kuota) tetap dipertahankan sebagai feedback
-        // cepat ke staff (fail-fast tanpa perlu lock), TAPI createLocked()
-        // di bawah adalah penjaga SEBENARNYA -- recheck overlap/kuota
-        // DI DALAM lockForUpdate() tepat sebelum create(), menutup celah
-        // TOCTOU kalau 2 submit dari device berbeda nyaris bersamaan.
-        $documentPath = $request->hasFile('document') ? \App\Support\SensitiveFiles::store($request->file('document'), 'leave-requests') : null;
-
+        // Aturan (susulan hanya untuk sakit, batas hari, tumpang tindih, jatah cuti) ada di LeaveSubmissionService, dipakai juga oleh halaman Absen Saya.
         try {
-            $leaveRequest = LeaveRequest::createLocked([
-                'user_id'    => $user->id,
-                'store_id'   => $user->store_id,
-                'type'       => $request->type,
-                'leave_type_id' => $request->leave_type_id,
-                'start_date' => $request->start_date,
-                'end_date'   => $request->end_date,
-                'reason'     => $request->reason,
-                'document'   => $documentPath,
-                'status'     => 'pending',
-            ]);
+            $leaveRequest = app(\App\Services\LeaveSubmissionService::class)->submit(
+                $user,
+                $request->filled('leave_type_id') ? (int) $request->leave_type_id : null,
+                $request->input('type'),
+                (string) $request->start_date,
+                (string) $request->end_date,
+                (string) $request->reason,
+                $request->file('document'),
+            );
         } catch (\RuntimeException $e) {
-            // Sama pola dengan fitur Foto Selfie Absensi -- hapus lampiran
-            // yang sudah terlanjur ter-upload supaya tidak jadi file
-            // yatim kalau ternyata gagal (race overlap/kuota).
-            if ($documentPath) {
-                \App\Support\SensitiveFiles::delete($documentPath);
-            }
-
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
-
-        $leaveRequest->notifyApprovers();
 
         return response()->json(['success' => true, 'leave_request' => $this->transformLeaveRequest($leaveRequest)], 201);
     }
@@ -557,16 +491,13 @@ class AttendanceController extends Controller
             return response()->json(['success' => false, 'message' => 'Pengajuan tidak ditemukan.'], 404);
         }
 
-        if ($leaveRequest->status !== 'pending') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Cuma pengajuan yang masih menunggu persetujuan yang bisa dibatalkan.',
-            ], 422);
+        try {
+            app(\App\Services\LeaveSubmissionService::class)->cancel($leaveRequest, $request->user('api'));
+        } catch (\RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 
-        $leaveRequest->update(['status' => 'cancelled']);
-
-        return response()->json(['success' => true, 'leave_request' => $this->transformLeaveRequest($leaveRequest)]);
+        return response()->json(['success' => true, 'leave_request' => $this->transformLeaveRequest($leaveRequest->fresh())]);
     }
 
     private function transform(Attendance $attendance): array

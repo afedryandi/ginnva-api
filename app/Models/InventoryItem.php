@@ -24,11 +24,17 @@ class InventoryItem extends Model
         'status',
         'notes',
         'created_by',
+        'stock_batch_id',
     ];
 
     protected $casts = [
         'received_date' => 'date',
     ];
+
+    public function stockBatch(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(StockBatch::class);
+    }
 
     public function creator(): BelongsTo
     {

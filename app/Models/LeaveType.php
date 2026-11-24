@@ -99,8 +99,8 @@ class LeaveType extends Model
         return $this->document_required_from_days !== null && $days >= $this->document_required_from_days;
     }
 
-    /** Keterangan singkat syarat jenis ini untuk layar karyawan. */
-    public function ruleSummary(): string
+    /** Keterangan singkat syarat jenis ini untuk layar karyawan. $withDocument false = tanpa kalimat kewajiban dokumen (form panel). */
+    public function ruleSummary(bool $withDocument = true): string
     {
         $parts = [];
 
@@ -108,10 +108,12 @@ class LeaveType extends Model
             $parts[] = "maksimal {$this->max_days} hari";
         }
 
-        if ($this->document_required_from_days !== null) {
+        if ($withDocument && $this->document_required_from_days !== null) {
+            // Jenis Sakit meminta surat keterangan sakit dari dokter; jenis lain (mis. cuti melahirkan) cukup disebut dokumen.
+            $doc = $this->category === 'sakit' ? 'surat keterangan sakit dari dokter' : 'dokumen';
             $parts[] = $this->document_required_from_days <= 1
-                ? 'wajib melampirkan dokumen'
-                : "wajib melampirkan dokumen kalau {$this->document_required_from_days} hari atau lebih";
+                ? "wajib melampirkan {$doc}"
+                : "wajib melampirkan {$doc} kalau {$this->document_required_from_days} hari atau lebih";
         }
 
         if ($this->deducts_annual_quota) {

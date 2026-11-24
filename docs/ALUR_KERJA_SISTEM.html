@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alur Kerja Sistem Ginnva</title>
+<script>
+  // Mode: "light", "dark", atau "auto" (ikut sistem). Bawaan terang; pilihan diingat di peramban ini.
+  (function () {
+    var mode = "light";
+    try { mode = localStorage.getItem("ginnva-flow-theme") || "light"; } catch (e) {}
+    var dark = mode === "dark" || (mode === "auto" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+    document.documentElement.setAttribute("data-mode", mode);
+  })();
+</script>
+<style>
+  :root {
+    --bg: #fafaf9; --surface: #ffffff; --ink: #1c1917; --muted: #6b6560; --line: #e7e3df; --accent: #b4232c; --soft: #f4f1ee; --code: #f4f1ee;
+    --ok: #166534; --warn: #92400e;
+  }
+  :root[data-theme="dark"] {
+    --bg: #17140f; --surface: #1f1b16; --ink: #f3efe9; --muted: #a79f95; --line: #36302a; --accent: #f08a8f; --soft: #2a2520; --code: #2a2520; --ok: #86efac; --warn: #fcd34d;
+    color-scheme: dark;
+  }
+  :root[data-theme="light"] { color-scheme: light; }
+  .theme-switch { position: fixed; top: 12px; right: 16px; z-index: 20; display: inline-flex; padding: 3px; gap: 2px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+  .theme-switch button { appearance: none; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 13px; padding: 5px 12px; border-radius: 999px; cursor: pointer; }
+  .theme-switch button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+  .theme-switch button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .wrap { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 32px; max-width: 1480px; margin: 0 auto; padding: 0 24px 80px; }
+  nav { position: sticky; top: 0; align-self: start; max-height: 100vh; overflow-y: auto; padding: 28px 0; font-size: 14px; }
+  nav h2 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 18px 0 6px; }
+  nav a { display: block; padding: 4px 0; color: var(--ink); text-decoration: none; }
+  nav a:hover { color: var(--accent); }
+  main { padding-top: 28px; min-width: 0; }
+  header.hero { padding: 24px 0 8px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+  h1 { font-size: 34px; line-height: 1.15; margin: 0 0 8px; letter-spacing: -.01em; }
+  h2.sec { font-size: 24px; margin: 56px 0 4px; padding-top: 12px; scroll-margin-top: 12px; letter-spacing: -.01em; }
+  h3 { font-size: 17px; margin: 28px 0 6px; }
+  p { margin: 8px 0; max-width: 78ch; }
+  .lead { color: var(--muted); font-size: 17px; max-width: 70ch; }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 14px; color: var(--muted); margin: 12px 0 0; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; margin: 14px 0; }
+  .diagram { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin: 14px 0; overflow-x: auto; }
+  .diagram pre.mermaid { margin: 0; text-align: center; font-size: 14px; }
+  .diagram pre.mermaid svg { min-width: 1000px; }
+  details { margin-top: 8px; font-size: 13px; color: var(--muted); }
+  details pre { background: var(--code); padding: 12px; border-radius: 8px; overflow-x: auto; font-size: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 10px 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: var(--soft); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+  tr:last-child td { border-bottom: 0; }
+  td.menu { font-weight: 600; white-space: nowrap; }
+  .tbl { overflow-x: auto; }
+  .note { border-left: 3px solid var(--accent); padding: 4px 14px; margin: 14px 0; background: var(--soft); border-radius: 0 8px 8px 0; }
+  .tag { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--soft); border: 1px solid var(--line); color: var(--muted); margin-right: 4px; }
+  code { background: var(--code); padding: 1px 6px; border-radius: 4px; font-size: 13px; }
+  ol.steps { padding-left: 20px; }
+  ol.steps li { margin: 4px 0; }
+  footer { margin-top: 64px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+  @media (max-width: 980px) { .wrap { grid-template-columns: 1fr; } nav { position: static; max-height: none; padding-bottom: 0; } }
+  @media print { nav, .theme-switch { display: none; } .wrap { display: block; } .diagram, .card, table { break-inside: avoid; } body { background: #fff; } }
+</style>
+</head>
+<body>
+<div class="theme-switch" role="group" aria-label="Tema tampilan">
+  <button type="button" data-set-mode="light">Terang</button>
+  <button type="button" data-set-mode="dark">Gelap</button>
+  <button type="button" data-set-mode="auto">Otomatis</button>
+</div>
+<div class="wrap">
+<nav aria-label="Daftar isi">
+  <h2>Mulai dari sini</h2>
+  <a href="#cara-baca">Cara membaca</a>
+  <a href="#peta">Peta besar sistem</a>
+  <h2>Alur kerja</h2>
+  <a href="#booking">1. Dari booking sampai uang masuk</a>
+  <a href="#setelah">2. Setelah layanan: garansi dan klaim</a>
+  <a href="#inventori">3. Stok dan pembelian</a>
+  <a href="#keuangan">4. Keuangan dan pembukuan</a>
+  <a href="#karyawan">5. Karyawan, absensi, gaji</a>
+  <a href="#marketing">6. Marketing, promosi, notifikasi</a>
+  <a href="#master">7. Master data dan pengaturan</a>
+  <a href="#laporan">8. Laporan dan analisa</a>
+  <h2>Rujukan</h2>
+  <a href="#matriks">Siapa memengaruhi siapa</a>
+  <a href="#katalog">Katalog semua menu</a>
+  <a href="#catatan">Catatan penting</a>
+</nav>
+
+<main>
+<header class="hero">
+  <h1>Alur Kerja Sistem Ginnva</h1>
+  <p class="lead">Satu dokumen yang menunjukkan semua menu di panel admin, kelompoknya, dan bagaimana satu fitur memengaruhi fitur lain: dari calon pelanggan sampai pembukuan, stok, karyawan, dan laporan.</p>
+  <div class="legend">
+    <span>Disusun 27 Oktober 2026 dari kode panel (<code>app/Filament</code>), layanan di <code>app/Services</code>, dan keputusan yang tercatat selama pengerjaan.</span>
+  </div>
+</header>
+
+<h2 class="sec" id="cara-baca">Cara membaca</h2>
+<div class="card">
+  <p><strong>Diagram</strong> dibaca dari atas ke bawah (atau kiri ke kanan). Kotak = langkah atau menu, belah ketupat = keputusan atau pemeriksaan otomatis, garis putus-putus = pengaruh tidak langsung (mis. notifikasi). Teks di garis menjelaskan pemicunya.</p>
+  <p>Diagram digambar oleh pustaka Mermaid dan butuh koneksi internet saat dokumen dibuka. Bila diagram tidak tampil, buka bagian <em>Lihat sumber diagram</em> di bawahnya untuk membaca alurnya sebagai teks, atau lihat <a href="#katalog">katalog menu</a> yang tidak butuh internet.</p>
+  <p><span class="tag">Akses penuh</span> berarti super admin atau direksi. <span class="tag">Toko</span> berarti staf yang dibatasi ke tokonya sendiri.</p>
+</div>
+
+<h2 class="sec" id="peta">Peta besar sistem</h2>
+<p>Tujuh kelompok bekerja di atas satu data bersama. Booking adalah pusatnya: hampir semua kelompok lain membaca atau menulis ke booking.</p>
+<div class="diagram"><pre class="mermaid">
+flowchart LR
+  PEL["Pelanggan<br/>aplikasi dan website"]
+  MKT["Marketing dan Konten<br/>lead, konten, promosi"]
+  MAS["Master Data dan Pengaturan<br/>kendaraan, toko, layanan, harga, kapasitas"]
+  BOOK["Booking dan Layanan<br/>booking, SPK, QC, garansi"]
+  INV["Inventori<br/>stok dan pembelian"]
+  SDM["Karyawan<br/>absensi dan gaji"]
+  KEU["Keuangan<br/>transaksi, jurnal, laporan"]
+  LAP["Laporan Penjualan dan Analisa"]
+  NOT["Notifikasi"]
+  PEL -->|"lead dan booking"| MKT
+  MKT -->|"ditindaklanjuti staf"| BOOK
+  PEL --> BOOK
+  MKT -->|"konten dan promosi"| PEL
+  MAS --> BOOK
+  MAS --> SDM
+  BOOK -->|"bahan terpakai"| INV
+  BOOK -->|"Proses Referral"| KEU
+  INV -->|"Hutang Usaha, persediaan"| KEU
+  SDM -->|"jurnal gaji"| KEU
+  BOOK --> LAP
+  INV --> LAP
+  BOOK -.-> NOT
+  NOT -.-> PEL
+</pre></div>
+
+<h2 class="sec" id="booking">1. Dari booking sampai uang masuk</h2>
+<p>Ini alur utama bisnis. Menu yang terlibat: <strong>Kalender Kapasitas &amp; Libur</strong>, <strong>Layanan Booking</strong>, <strong>Booking Instalasi</strong>, <strong>SPK</strong>, <strong>Memo Pengambilan/Pengembalian</strong>, <strong>Produk PPF/WF</strong>, <strong>Daftar Periksa QC</strong>, <strong>Invoice</strong>, <strong>Persetujuan Transaksi</strong>, <strong>Piutang Usaha</strong>, <strong>Jurnal Umum</strong>.</p>
+<div class="diagram"><pre class="mermaid">
+flowchart TD
+  A["Pelanggan membuat booking di aplikasi<br/>pilih layanan, toko, tanggal, kendaraan"] --> B{"Pemeriksaan otomatis"}
+  B -->|"tanggal ditutup, libur mingguan, kapasitas penuh, slot jam penuh"| X["Ditolak, pelanggan memilih tanggal lain"]
+  B -->|"lolos"| C["Booking Pending"]
+  C -->|"dibatalkan pelanggan atau staf"| Z["Booking Cancelled"]
+  C --> D["Staf mengonfirmasi<br/>cek kapasitas lagi, tugaskan installer dan pemantau, kabari via WhatsApp"]
+  D --> E["Booking Confirmed"]
+  E -->|"opsional"| DP["Catat Uang Muka DP<br/>akun 2140, dikembalikan bila batal"]
+  E -->|"pelanggan tidak datang"| Y["Tandai Tidak Datang oleh Store Manager<br/>booking Cancelled, DP dikembalikan"]
+  E --> F["Foto penerimaan kendaraan"]
+  F --> G["SPK dibuat dari booking<br/>butir pekerjaan tercentang sesuai layanan booking"]
+  G --> H["Tahap pekerjaan diperbarui di aplikasi staf<br/>pelanggan melihat progres di chat"]
+  H --> I["Quality Check<br/>butir dari Daftar Periksa QC, pemeriksa bukan pengerja"]
+  G -.->|"praktik toko: setelah SPK terisi<br/>tidak diwajibkan sistem"| MM["Memo Pengambilan/Pengembalian<br/>satu memo per booking, booking boleh ditautkan<br/>stok berkurang saat barang diambil<br/>sisa dikembalikan lewat memo yang sama"]
+  H -.->|"produk wajib lacak roll"| RL["Catat Pemakaian roll di Produk PPF/WF"]
+  RL -.-> L
+  I -->|"tidak lulus"| H
+  I -->|"lulus"| J["Kendaraan siap diambil"]
+  J --> K["Serah terima unit<br/>izin foto pelanggan dicatat"]
+  K --> L["SPK: Jam Keluar terisi<br/>status booking TIDAK berubah<br/>ditolak bila roll wajib lacak belum dicatat"]
+  L --> M["Booking diselesaikan: Completed"]
+  M --> N["Catat penjualan dan pembayaran<br/>rincian harga per layanan"]
+  N --> O["Proses Referral oleh kasir"]
+  O -->|"staf non akses penuh"| P["Persetujuan Transaksi oleh akses penuh"]
+  O -->|"akses penuh"| Q["Jurnal pendapatan dicatat"]
+  P --> Q
+  Q -->|"diterima kurang dari nilai transaksi"| R["Sisa menjadi Piutang Usaha"]
+  R --> S["Pelunasan piutang, uang masuk ke kas atau bank"]
+  Q --> T["Poin referral dan voucher diproses"]
+</pre></div>
+
+<div class="note">
+  <p><strong>Empat hal yang sering membingungkan di alur ini</strong></p>
+  <ol class="steps">
+    <li><strong>SPK dan status booking berdiri sendiri.</strong> Menandai kendaraan keluar di SPK tidak menyelesaikan booking. Booking diselesaikan terpisah. Daftar Booking punya filter <em>Kendaraan keluar, booking belum selesai</em> untuk menemukan yang terlewat.</li>
+    <li><strong>Pendapatan dicatat di Proses Referral</strong>, bukan saat kendaraan keluar. Opsi mencatat pendapatan saat booking selesai ada tetapi mati bawaan (bendera <code>FEATURE_REVENUE_ON_COMPLETION</code>).</li>
+    <li><strong>Memo bahan bukan langkah wajib.</strong> Praktik di toko: memo diisi setelah SPK terisi. Sistem sendiri tidak memaksa urutan itu (memo boleh dibuat kapan saja), dan itulah arti garis putus-putus di diagram. Tetapi hasilnya tetap penting: HPP bahan pendukung (lem, primer, dan sejenisnya) dihitung dari memo, sedangkan HPP film dihitung dari Catat Pemakaian roll, bukan dari memo. Memo yang tidak diisi berarti HPP bahan pendukung booking itu kurang.</li>
+    <li><strong>Tanggal ditutup</strong> di Kalender Kapasitas &amp; Libur memengaruhi tiga hal sekaligus: booking tidak bisa dipilih, absensi tidak dihitung Alpha, dan jam kerjanya tidak dihitung di gaji.</li>
+  </ol>
+</div>
+
+<h3>Menu pendukung alur ini</h3>
+<div class="tbl"><table>
+  <tr><th>Menu</th><th>Perannya di alur</th></tr>
+  <tr><td class="menu">Kalender Kapasitas &amp; Libur</td><td>Mengatur kapasitas harian layanan berat dan menutup tanggal. Dibaca saat pelanggan memilih tanggal dan saat staf mengonfirmasi.</td></tr>
+  <tr><td class="menu">Layanan Booking</td><td>Empat layanan tetap (PPF, Kaca Film, Detailing, Premium Wash) beserta kategori berat atau ringan, durasi, dan aktif atau tidak.</td></tr>
+  <tr><td class="menu">Booking Instalasi</td><td>Pusat alur: konfirmasi, penugasan, DP, tahap kerja, Proses Referral, refund, duplikat untuk pelanggan yang datang lagi.</td></tr>
+  <tr><td class="menu">SPK</td><td>Dokumen kerja fisik per kunjungan: jam masuk dan keluar, daftar pekerjaan, kondisi kendaraan, tanda tangan.</td></tr>
+  <tr><td class="menu">Memo Pengambilan/Pengembalian</td><td>Catatan pengambilan bahan, barang habis pakai, dan film (meter) untuk pekerjaan, lalu sisa yang dikembalikan. <strong>Tidak wajib dan tidak terkunci urutannya</strong>: boleh dibuat kapan saja, dengan atau tanpa booking; satu booking hanya boleh punya satu memo (tambahan barang mengedit memo yang sama). Stok berkurang saat barang diambil. Dipakai juga untuk bahan klaim garansi.</td></tr>
+  <tr><td class="menu">Produk PPF/WF (Catat Pemakaian)</td><td>Mencatat roll film yang dipakai (terpisah dari memo). Untuk produk yang diatur Wajib Lacak Roll, SPK baru bisa ditandai selesai setelah pemakaian roll tercatat.</td></tr>
+  <tr><td class="menu">Daftar Periksa QC</td><td>Butir yang diperiksa saat Quality Check, per layanan. Urutannya diatur dengan menyeret baris.</td></tr>
+  <tr><td class="menu">Invoice</td><td>Dokumen tagihan (diskon per baris, diskon transaksi, ongkir). Murni dokumen: tidak menjurnal.</td></tr>
+  <tr><td class="menu">Persetujuan Transaksi</td><td>Proses Referral, Refund, dan DP dari staf non akses penuh menunggu persetujuan akses penuh.</td></tr>
+  <tr><td class="menu">Piutang Usaha, Umur Piutang</td><td>Sisa yang belum dibayar pelanggan, dipantau menurut umur, termasuk perputaran dan hari penagihan.</td></tr>
+  <tr><td class="menu">Jurnal Umum</td><td>Tempat jurnal pendapatan, DP, refund, dan piutang tercatat.</td></tr>
+</table></div>
+
+<h2 class="sec" id="setelah">2. Setelah layanan: garansi dan klaim</h2>
+<p>Menu: <strong>Garansi</strong> (termasuk Riwayat Klaim After-Sales), <strong>Review Toko</strong>, <strong>Memo Pengambilan/Pengembalian</strong>, <strong>Pekerjaan Ulang</strong>.</p>
+<div class="diagram"><pre class="mermaid">
+flowchart TD
+  A["Booking selesai"] --> B["Pelanggan mendaftarkan Garansi di aplikasi atau website"]
+  B --> C["Garansi: Pending Review"]
+  C --> D{"Review QA oleh akses penuh"}
+  D -->|"Approved"| E["Garansi aktif<br/>jadwal maintenance dan pengingat terkirim"]
+  D -->|"Rejected"| F["Garansi ditolak"]
+  E --> G["Pelanggan mengajukan klaim after-sales"]
+  G --> H["Klaim ditangani<br/>penanggung jawab, perkiraan selesai"]
+  H --> I["Booking kunjungan untuk klaim"]
+  I --> J["Bahan terpakai dicatat lewat Memo Pengambilan<br/>stok berkurang"]
+  J --> K["Catat Penyelesaian: hasil penanganan"]
+  K --> L["Notifikasi ke pelanggan"]
+  A --> M["Pelanggan menulis Review Toko"]
+  E -.-> N["Export Excel garansi dikirim manual ke tim pusat"]
+  A -.-> W["Pekerjaan Ulang dicatat bila ada keluhan atau temuan internal"]
+</pre></div>
+<div class="note"><p>Sinkronisasi garansi ke tim pusat dilakukan lewat Export Excel manual, bukan sambungan otomatis. Status garansi memakai istilah Inggris (Pending Review, Approved, Rejected) sesuai keputusan pemilik.</p></div>
+
+<h2 class="sec" id="inventori">3. Stok dan pembelian</h2>
+<p>Menu: <strong>Dashboard Inventaris</strong>, <strong>Produk PPF/WF</strong>, <strong>Daftar Bahan Baku</strong>, <strong>Barang Habis Pakai</strong>, <strong>Aset Tetap</strong>, <strong>Permohonan Pembelian</strong>, <strong>Memo Pengambilan/Pengembalian</strong>, <strong>Stok Opname</strong>, <strong>Stok Terbuang</strong>, <strong>Daftar Stok</strong>, tiga Riwayat, <strong>Hutang Usaha</strong>, <strong>Supplier</strong>.</p>
+<div class="diagram"><pre class="mermaid">
+flowchart TD
+  A["Dashboard Inventaris<br/>stok menipis, kedaluwarsa, tidak bergerak"] -->|"tombol Buat Permintaan Beli"| B
+  S0["Staf mengajukan sendiri"] --> B["Permohonan Pembelian: Menunggu"]
+  B --> C{"Akses penuh"}
+  C -->|"Tolak"| X["Ditolak"]
+  C -->|"Setujui"| D["Disetujui"]
+  D --> E["Barang diterima, dicatat lewat Catat Stok"]
+  E --> F["Tandai Terpenuhi<br/>Jumlah Diterima, Biaya Aktual, Supplier"]
+  F --> G["Jurnal: Persediaan atau Aset di debit<br/>Hutang Usaha di kredit"]
+  G --> H["Hutang Usaha, lalu Catat Pembayaran<br/>dari Rekening Kas dan Bank"]
+  E --> ST["Stok bertambah<br/>Produk PPF/WF, Bahan Baku, Barang Habis Pakai"]
+  ST --> MM["Stok berkurang: Memo per booking,<br/>Stok Terbuang, Stok Opname"]
+  MM --> RW["Riwayat dan Daftar Stok"]
+  RW -.-> RS["Rekonsiliasi Sub-Buku<br/>stok dibandingkan dengan Buku Besar"]
+  F -.-> AS["Aset Tetap: penyusutan bulanan dan Lepas Aset"]
+</pre></div>
+<div class="note"><p><strong>Pemasok utama</strong> pada data Bahan Baku dan Barang Habis Pakai tampil di peringatan stok menipis dan menjadi isian awal Supplier saat permohonan ditandai terpenuhi. Menandai terpenuhi <em>tidak</em> menambah stok; stok hanya bertambah lewat Catat Stok.</p></div>
+
+<h2 class="sec" id="keuangan">4. Keuangan dan pembukuan</h2>
+<p>Menu: seluruh kelompok Keuangan (Jurnal &amp; Akun, Transaksi, Piutang &amp; Utang, Approval, Laporan Keuangan, Pengaturan).</p>
+<div class="diagram"><pre class="mermaid">
+flowchart LR
+  subgraph SUMBER["Sumber jurnal"]
+    S1["Proses Referral, Refund, DP"]
+    S2["Transaksi Keuangan"]
+    S3["Hutang dan Piutang Usaha"]
+    S4["Penyusutan dan Lepas Aset"]
+    S5["Penggajian"]
+    S6["Pemindahan Kas dan Hitung Kas Harian"]
+    S7["Rekonsiliasi Bank:<br/>Catat sebagai Transaksi"]
+    S8["Template Tagihan Rutin"]
+  end
+  S7 --> S2
+  S8 -->|"tiap bulan"| S3
+  S1 -->|"staf non akses penuh"| AT["Persetujuan Transaksi"]
+  S2 -->|"pengeluaran"| AP["Persetujuan Pengeluaran<br/>staf, Store Manager, direksi"]
+  AT --> JU
+  AP --> JU
+  S1 --> JU
+  S3 --> JU
+  S4 --> JU
+  S5 --> JU
+  S6 --> JU
+  JU["Jurnal Umum<br/>akun dari Bagan Akun,<br/>kategori dari Kategori Keuangan"]
+  JU --> LK["Laporan Keuangan:<br/>Neraca Saldo, Buku Besar, Laba Rugi,<br/>Laba Rugi Bulanan, Neraca, Arus Kas,<br/>Saldo Kas dan Bank, Anggaran vs Realisasi"]
+  JU --> RC["Rekonsiliasi Sub-Buku<br/>saldo akun kontrol vs sub-buku"]
+  JU --> TP["Tutup Periode<br/>daftar periksa lalu kunci bulan"]
+  TP --> TT["Tutup Tahun Buku<br/>jurnal penutup ke Laba Ditahan"]
+  PG["Pengaturan Keuangan<br/>batas persetujuan Store Manager"] -.-> AP
+  AN["Anggaran per akun beban"] -.-> LK
+</pre></div>
+<div class="note">
+  <p><strong>Aturan penting yang ditegakkan sistem</strong></p>
+  <ol class="steps">
+    <li>Bulan yang sudah ditutup tidak menerima jurnal baru, perubahan, atau posting. Koreksi lewat Jurnal Pembalik atau buka kembali periode (dengan alasan).</li>
+    <li>Bulan ditutup berurutan dari yang paling lama. Daftar periksa memblokir bila ada jurnal Draft atau debit dan kredit tidak seimbang.</li>
+    <li>Tutup Tahun Buku dilakukan <em>sebelum</em> menutup Desember.</li>
+    <li>Proses Referral, Refund, dan DP dari staf non akses penuh wajib disetujui akses penuh lebih dulu.</li>
+  </ol>
+</div>
+
+<h2 class="sec" id="karyawan">5. Karyawan, absensi, dan gaji</h2>
+<p>Menu: seluruh kelompok Karyawan, ditambah laporan Absensi dan Laporan Karyawan.</p>
+<div class="diagram"><pre class="mermaid">
+flowchart LR
+  U["User dan Role<br/>akun, toko, akses menu"]
+  TO["Toko: jam operasional"]
+  TT["Tanggal ditutup di<br/>Kalender Kapasitas dan Libur"]
+  AB["Absensi di aplikasi staf<br/>masuk, keluar, telat, alpha"]
+  KO["Koreksi Absensi"]
+  AR["Aturan Potongan Absensi"]
+  IC["Izin dan Cuti<br/>kuota dari Jenis Izin dan Cuti"]
+  SK["Struktur dan Skala Upah,<br/>Kategori Komponen Gaji"]
+  KD["Kelengkapan Data Karyawan<br/>dicek sebelum generate"]
+  GJ["Penggajian<br/>gaji pokok, komponen, potongan"]
+  SL["Slip Gaji di aplikasi staf"]
+  JR["Jurnal gaji di Keuangan"]
+  HRM["Kepegawaian: Tipe Karyawan,<br/>Perpanjang Kontrak, Peraturan dan Kebijakan,<br/>Surat Peringatan, Checklist Karyawan"]
+  KIN["Kinerja dan K3: APD, Pelatihan, Kejadian K3,<br/>Penilaian Kinerja, Pekerjaan Ulang,<br/>Kompetensi Installer, Utilisasi Teknisi"]
+  U --> AB
+  TO --> AB
+  TT --> AB
+  AB --> KO
+  AB --> AR
+  AR --> GJ
+  IC --> GJ
+  SK --> GJ
+  KD -.-> GJ
+  GJ --> SL
+  GJ --> JR
+  U --> HRM
+  U --> KIN
+</pre></div>
+<div class="note"><p>Menu <strong>Jadwal Kerja</strong> (Daftar Shift, Daftar Jadwal Kerja, Jadwal Kerja Karyawan) ada di panel tetapi Ginnva tidak memakai sistem shift (keputusan 2026-10-17). Keterlambatan dihitung dari jam buka toko.</p></div>
+
+<h2 class="sec" id="marketing">6. Marketing, promosi, dan notifikasi</h2>
+<div class="diagram"><pre class="mermaid">
+flowchart LR
+  W["Website dan aplikasi"]
+  IQ["Inquiry Produk,<br/>Kemitraan dan Sales Referral,<br/>Quotation (Lead)"]
+  PA["Partner:<br/>referral dan poin partner"]
+  DL["Dasbor Lead<br/>respons sesuai target, kanal,<br/>kampanye, tingkat deal"]
+  BK["Booking Instalasi<br/>dibuat staf setelah<br/>lead ditindaklanjuti"]
+  KONT["Konten: Banner, Seri Produk, Berita,<br/>Galeri Pemasangan, Materi,<br/>Klaim dan Bukti, Lowongan Kerja"]
+  IF["Izin Foto Pelanggan<br/>dicatat saat serah terima,<br/>bawaan tidak"]
+  GC["Galeri Customer"]
+  AP["Aplikasi pelanggan dan website"]
+  LOY["Promosi dan Loyalti:<br/>Promo Total Pembelian,<br/>Katalog Reward"]
+  PT["Riwayat Poin<br/>Customer dan Partner"]
+  KR["Klaim Reward"]
+  NT["Notifikasi: Kirim, Kampanye, Templat,<br/>Katalog, Riwayat, Log Pengiriman"]
+  W --> IQ
+  IQ --> DL
+  DL --> BK
+  PA -.-> IQ
+  IF --> GC
+  GC --> AP
+  KONT --> AP
+  LOY --> BK
+  BK -->|"selesai"| PT
+  PT --> KR
+  LOY --> KR
+  BK -.->|"pemicu otomatis"| NT
+  NT -.-> AP
+</pre></div>
+<div class="note"><p>Quotation (Lead) <strong>tidak otomatis berubah menjadi booking</strong>: tidak ditemukan tautan otomatis di kode. Staf menindaklanjuti lead lalu membuat booking.</p></div>
+
+<h2 class="sec" id="master">7. Master data dan pengaturan</h2>
+<div class="diagram"><pre class="mermaid">
+flowchart LR
+  KD["Kendaraan<br/>merek, model, ukuran S sampai XXL, aktif atau nonaktif"] --> HG
+  LK["Luas Kaca<br/>meter persegi per merek dan model"] --> HG
+  HG["Harga dan kalkulator<br/>Daftar Produk, Perubahan Harga Terjadwal"] --> BQ["Quotation dan Booking"]
+  TK["Toko/Dealer<br/>kode, jam operasional, kapasitas harian, slot layanan ringan"] --> KC["Kalender Kapasitas dan Libur"]
+  KC --> BQ
+  LB["Layanan Booking<br/>empat layanan tetap"] --> BQ
+  LB --> QC["Daftar Periksa QC"]
+  TA["Teks Aplikasi<br/>kebijakan pembatalan dan privasi"] --> AP["Aplikasi pelanggan"]
+  PM["Pusat Master Data<br/>kelengkapan data, hanya baca"] -.-> KD
+  PM -.-> LK
+  PM -.-> TK
+  UR["User, Role, Akses Menu"] -.-> SEMUA["Semua menu"]
+</pre></div>
+<div class="note"><p>Daftar harga publik masih membaca Google Sheet sampai bendera <code>FEATURE_PRICELIST_FROM_DATABASE</code> dinyalakan. Setelah itu, luas kaca di database dan perubahan harga terjadwal ikut memengaruhi harga yang tampil.</p></div>
+
+<h2 class="sec" id="laporan">8. Laporan dan analisa</h2>
+<p>Laporan tidak menyimpan data sendiri; semuanya membaca dari alur di atas.</p>
+<div class="tbl"><table>
+  <tr><th>Kelompok laporan</th><th>Isi</th><th>Bersumber dari</th></tr>
+  <tr><td class="menu">Laporan Penjualan</td><td>Ringkasan Penjualan, Detail Penjualan, Penjualan Per Periode, Penjualan Outlet, Buku Pembayaran, Laporan Void, Laporan Refund, Laporan Jenis Order</td><td>Booking selesai, Proses Referral, DP, pelunasan piutang, refund</td></tr>
+  <tr><td class="menu">Laporan Produk</td><td>Penjualan Produk</td><td>Produk pada booking, Daftar Produk</td></tr>
+  <tr><td class="menu">Laporan Jasa</td><td>Laporan Jasa, Reservasi, Reservasi &amp; Utilisasi, Proses Order, Proses Produk, SLA &amp; Tidak Datang</td><td>Booking, tahap pekerjaan, SPK (jam masuk dan keluar), kapasitas</td></tr>
+  <tr><td class="menu">Laporan Promo &amp; Loyalti</td><td>Laporan Promo, Poin, Kupon</td><td>Promo Total Pembelian, voucher, poin</td></tr>
+  <tr><td class="menu">Laporan Pelanggan</td><td>Perilaku dan nilai pelanggan</td><td>Daftar Pelanggan, Booking</td></tr>
+  <tr><td class="menu">Laporan Karyawan</td><td>Laporan Karyawan, Absensi, Komisi Tetap</td><td>Absensi, penggajian, komisi teknisi</td></tr>
+  <tr><td class="menu">Laporan Persediaan</td><td>Ringkasan dan Detail Persediaan, Stok Kedaluwarsa, Serial Number</td><td>Stok, batch, Memo, Stok Opname</td></tr>
+  <tr><td class="menu">Laporan Fasilitas</td><td>Utilisasi Zona/Bay</td><td>Tahap pekerjaan di Booking</td></tr>
+  <tr><td class="menu">Analisa Laporan</td><td>Waktu Teramai Penjualan, Waktu Teramai Produk, Perputaran Stok, Kepuasan Pelanggan</td><td>Booking, stok, Review Toko</td></tr>
+  <tr><td class="menu">Laporan Keuangan</td><td>Neraca Saldo, Buku Besar, Laba Rugi, Laba Rugi Bulanan, Neraca, Arus Kas, Saldo Kas &amp; Bank, Anggaran vs Realisasi</td><td>Jurnal Umum yang sudah diposting</td></tr>
+</table></div>
+<p>Semua laporan tabel punya tombol <strong>Export ke Excel</strong> dan <strong>Export ke PDF</strong>; ekspor tercatat di Histori Aktivitas.</p>
+
+<h2 class="sec" id="matriks">Siapa memengaruhi siapa</h2>
+<p>Baca per baris: <em>menu di kiri</em> mengubah atau menjadi dasar bagi <em>menu di kanan</em>. Gunakan ini sebelum mengubah sebuah pengaturan, untuk tahu apa saja yang ikut terpengaruh.</p>
+<div class="tbl"><table>
+  <tr><th>Bila Anda mengubah</th><th>Maka ikut terpengaruh</th></tr>
+  <tr><td class="menu">Kalender Kapasitas &amp; Libur (tanggal ditutup)</td><td>Pilihan tanggal di aplikasi pelanggan, konfirmasi booking, reschedule, absensi (bukan Alpha), hitungan jam kerja gaji, laporan utilisasi</td></tr>
+  <tr><td class="menu">Toko/Dealer (jam operasional)</td><td>Libur mingguan, slot jam layanan ringan, hitungan telat absensi, jam kerja di gaji</td></tr>
+  <tr><td class="menu">Layanan Booking</td><td>Kategori berat atau ringan (cara hitung kapasitas), pilihan layanan di aplikasi, butir di Daftar Periksa QC</td></tr>
+  <tr><td class="menu">Daftar Periksa QC</td><td>Pemeriksaan QC berikutnya di aplikasi staf (hasil lama menyimpan salinannya sendiri)</td></tr>
+  <tr><td class="menu">Kendaraan dan Luas Kaca</td><td>Ukuran dan harga di kalkulator, Quotation, Booking, katalog di aplikasi (hanya kendaraan aktif)</td></tr>
+  <tr><td class="menu">Daftar Produk, Perubahan Harga Terjadwal</td><td>Harga di Booking baru dan Quotation; daftar harga publik bila bendera database menyala</td></tr>
+  <tr><td class="menu">Booking Instalasi (status dan Proses Referral)</td><td>SPK, jurnal pendapatan, Piutang Usaha, poin dan voucher, notifikasi pelanggan, semua Laporan Penjualan dan Jasa</td></tr>
+  <tr><td class="menu">SPK (Jam Keluar)</td><td>Notifikasi ke staf toko, laporan durasi pengerjaan, durasi servis teknisi. <em>Tidak</em> mengubah status booking</td></tr>
+  <tr><td class="menu">Permohonan Pembelian (Tandai Terpenuhi)</td><td>Hutang Usaha, jurnal Persediaan atau Aset, Umur Hutang, Rekonsiliasi Sub-Buku</td></tr>
+  <tr><td class="menu">Memo Pengambilan/Pengembalian</td><td>Stok bahan, Riwayat Bahan Baku, Daftar Stok, laporan Persediaan; juga dipakai untuk bahan klaim garansi</td></tr>
+  <tr><td class="menu">Transaksi Keuangan</td><td>Persetujuan Pengeluaran bila pengeluaran, Jurnal Umum, Saldo Kas &amp; Bank, Anggaran vs Realisasi, laporan keuangan</td></tr>
+  <tr><td class="menu">Pengaturan Keuangan</td><td>Batas nominal yang cukup disetujui Store Manager, profil perusahaan di dokumen Invoice</td></tr>
+  <tr><td class="menu">Tutup Periode</td><td>Seluruh menu yang membuat jurnal (ditolak untuk bulan yang ditutup), status buku di atas halaman Keuangan</td></tr>
+  <tr><td class="menu">Aturan Potongan Absensi, Struktur &amp; Skala Upah, Kategori Komponen Gaji</td><td>Hasil Penggajian, slip gaji di aplikasi staf, jurnal gaji</td></tr>
+  <tr><td class="menu">User dan Role (Akses Menu)</td><td>Menu yang terlihat di panel dan menu yang tampil di aplikasi staf (aplikasi mengikuti hak akses dari server)</td></tr>
+  <tr><td class="menu">Teks Aplikasi</td><td>Teks kebijakan yang dibaca pelanggan di aplikasi, langsung berlaku tanpa rilis aplikasi</td></tr>
+</table></div>
+
+<h2 class="sec" id="katalog">Katalog semua menu</h2>
+<p>Daftar lengkap menu panel admin menurut kelompoknya (diambil dari kode). Keterangan ditulis ringkas.</p>
+
+<h3>Booking</h3>
+<div class="tbl"><table>
+  <tr><th>Grup</th><th>Menu</th><th>Fungsi singkat</th></tr>
+  <tr><td>Order &amp; Lead</td><td class="menu">Quotation (Lead)</td><td>Permintaan penawaran dari pelanggan, ditindaklanjuti staf (status New, Contacted, Closed, Cancelled)</td></tr>
+  <tr><td></td><td class="menu">Booking Instalasi</td><td>Daftar dan proses booking</td></tr>
+  <tr><td></td><td class="menu">SPK</td><td>Surat Perintah Kerja dan kondisi kendaraan</td></tr>
+  <tr><td>Operasional</td><td class="menu">Kalender Kapasitas &amp; Libur</td><td>Kapasitas harian dan penutupan tanggal</td></tr>
+  <tr><td></td><td class="menu">Layanan Booking</td><td>Katalog empat layanan tetap</td></tr>
+  <tr><td></td><td class="menu">Daftar Periksa QC</td><td>Butir Quality Check per layanan</td></tr>
+  <tr><td></td><td class="menu">Teks Aplikasi</td><td>Teks yang tampil ke pelanggan di aplikasi</td></tr>
+  <tr><td>Dokumen</td><td class="menu">Invoice</td><td>Dokumen tagihan</td></tr>
+  <tr><td>Setelah Layanan</td><td class="menu">Garansi</td><td>Review QA, klaim after-sales, jadwal maintenance</td></tr>
+  <tr><td></td><td class="menu">Review Toko</td><td>Ulasan pelanggan atas toko</td></tr>
+  <tr><td>Teknisi</td><td class="menu">Teknisi</td><td>Roster teknisi, level, status, komisi tetap, keterampilan per layanan</td></tr>
+</table></div>
+
+<h3>Keuangan</h3>
+<div class="tbl"><table>
+  <tr><th>Grup</th><th>Menu</th><th>Fungsi singkat</th></tr>
+  <tr><td>Transaksi</td><td class="menu">Transaksi Keuangan</td><td>Pemasukan dan pengeluaran harian, dengan kategori, rekening, bukti</td></tr>
+  <tr><td></td><td class="menu">Template Tagihan Rutin</td><td>Tagihan berulang (mis. sewa) yang otomatis menjadi Hutang Usaha</td></tr>
+  <tr><td>Piutang &amp; Utang</td><td class="menu">Piutang Usaha / Hutang Usaha</td><td>Tagihan ke pelanggan dan dari supplier, pembayaran bertahap</td></tr>
+  <tr><td></td><td class="menu">Umur Piutang / Umur Hutang</td><td>Sisa tagihan menurut keterlambatan; Umur Piutang juga menampilkan perputaran piutang dan hari penagihan</td></tr>
+  <tr><td>Jurnal &amp; Akun</td><td class="menu">Jurnal Umum, Bagan Akun</td><td>Pembukuan dan daftar akun</td></tr>
+  <tr><td></td><td class="menu">Rekening Kas &amp; Bank, Pemindahan Kas, Hitung Kas Harian</td><td>Rekening toko, perpindahan uang antar rekening, hitung fisik kas harian</td></tr>
+  <tr><td></td><td class="menu">Rekonsiliasi Bank</td><td>Mutasi bank dicocokkan dengan transaksi; mutasi yang belum ada bisa dicatat sebagai transaksi</td></tr>
+  <tr><td></td><td class="menu">Rekonsiliasi Sub-Buku</td><td>Saldo akun kontrol vs total sub-buku</td></tr>
+  <tr><td></td><td class="menu">Anggaran</td><td>Anggaran bulanan per akun beban</td></tr>
+  <tr><td></td><td class="menu">Tutup Periode, Tutup Tahun Buku</td><td>Mengunci bulan dan menutup tahun</td></tr>
+  <tr><td></td><td class="menu">Pengaturan Keuangan</td><td>Batas persetujuan, profil perusahaan</td></tr>
+  <tr><td>Approval</td><td class="menu">Persetujuan Pengeluaran, Persetujuan Transaksi</td><td>Antrean persetujuan</td></tr>
+  <tr><td>Pengaturan</td><td class="menu">Kategori Keuangan, Supplier</td><td>Master kategori (terhubung ke akun) dan pemasok</td></tr>
+  <tr><td>Laporan Keuangan</td><td class="menu">Dasbor Keuangan, Laporan Keuangan, Neraca Saldo, Saldo Kas &amp; Bank, Laporan Laba Rugi, Laba Rugi Bulanan, Anggaran vs Realisasi, Buku Besar, Neraca, Laporan Arus Kas</td><td>Laporan dari jurnal yang diposting</td></tr>
+</table></div>
+
+<h3>Inventori</h3>
+<div class="tbl"><table>
+  <tr><th>Grup</th><th>Menu</th><th>Fungsi singkat</th></tr>
+  <tr><td>Dashboard</td><td class="menu">Dashboard Inventaris</td><td>Yang perlu perhatian: stok menipis, kedaluwarsa, tidak bergerak, aset bermasalah</td></tr>
+  <tr><td>Master Data Stok</td><td class="menu">Produk PPF/WF, Daftar Bahan Baku, Barang Habis Pakai, Aset Tetap</td><td>Katalog dan stok masing-masing jenis barang</td></tr>
+  <tr><td>Permintaan &amp; Memo</td><td class="menu">Memo Pengambilan/Pengembalian, Permohonan Pembelian</td><td>Pemakaian bahan per booking, pengajuan pembelian</td></tr>
+  <tr><td>Riwayat</td><td class="menu">Riwayat Keluar/Masuk, Riwayat Bahan Baku, Riwayat Barang Habis Pakai</td><td>Jejak pergerakan stok (hanya dibaca)</td></tr>
+  <tr><td>Kelola Stok</td><td class="menu">Daftar Stok, Stok Opname, Stok Terbuang</td><td>Awal/Masuk/Keluar/Akhir, hitung fisik, barang rusak atau hilang</td></tr>
+</table></div>
+
+<h3>Karyawan</h3>
+<div class="tbl"><table>
+  <tr><th>Grup</th><th>Menu</th></tr>
+  <tr><td>Data Karyawan</td><td class="menu">Dasbor HR, User, Role / Divisi, Tipe Karyawan, Kelengkapan Data, Kompetensi Installer</td></tr>
+  <tr><td>Absensi</td><td class="menu">Absensi Karyawan, Koreksi Absensi</td></tr>
+  <tr><td>Cuti &amp; Kontrak</td><td class="menu">Izin &amp; Cuti, Jenis Izin &amp; Cuti, Perpanjang Kontrak, Surat Peringatan, Peraturan &amp; Kebijakan, Checklist Karyawan, Template Checklist</td></tr>
+  <tr><td>Penggajian</td><td class="menu">Penggajian, Aturan Potongan Absensi, Kategori Komponen Gaji, Struktur &amp; Skala Upah</td></tr>
+  <tr><td>Kinerja Teknisi</td><td class="menu">Utilisasi Teknisi, Durasi Servis Teknisi</td></tr>
+  <tr><td>K3 &amp; Kinerja</td><td class="menu">Jenis APD, Pembagian APD, Pelatihan Karyawan, Kejadian K3, Penilaian Kinerja, Pekerjaan Ulang</td></tr>
+  <tr><td>Jadwal Kerja</td><td class="menu">Daftar Shift, Daftar Jadwal Kerja, Jadwal Kerja Karyawan <span class="tag">tidak dipakai</span></td></tr>
+</table></div>
+
+<h3>Marketing &amp; Konten</h3>
+<div class="tbl"><table>
+  <tr><th>Grup</th><th>Menu</th></tr>
+  <tr><td>Inquiry &amp; Kemitraan</td><td class="menu">Dasbor Lead, Inquiry Produk, Kemitraan &amp; Sales Referral, Partner</td></tr>
+  <tr><td>Konten Beranda</td><td class="menu">Banner / Carousel, Seri Produk (Beranda), Berita, Galeri Pemasangan, Galeri Customer, Izin Foto Pelanggan</td></tr>
+  <tr><td>Klaim Produk</td><td class="menu">Klaim &amp; Bukti</td></tr>
+  <tr><td>Materi</td><td class="menu">Kategori Materi, Materi Download</td></tr>
+  <tr><td>Rekrutmen</td><td class="menu">Lowongan Kerja</td></tr>
+</table></div>
+
+<h3>Penjualan, Produk, Pelanggan, Promosi</h3>
+<div class="tbl"><table>
+  <tr><th>Kelompok</th><th>Menu</th></tr>
+  <tr><td>Penjualan: Laporan Penjualan</td><td class="menu">Ringkasan Penjualan, Detail Penjualan, Penjualan Per Periode, Penjualan Outlet, Buku Pembayaran, Laporan Void, Laporan Refund, Laporan Jenis Order</td></tr>
+  <tr><td>Penjualan: Laporan Produk</td><td class="menu">Penjualan Produk</td></tr>
+  <tr><td>Penjualan: Laporan Jasa</td><td class="menu">Laporan Jasa, Laporan Reservasi, Laporan Reservasi &amp; Utilisasi, Proses Order, Proses Produk, Laporan SLA &amp; Tidak Datang</td></tr>
+  <tr><td>Penjualan: Promo &amp; Loyalti</td><td class="menu">Laporan Promo, Laporan Poin, Laporan Kupon</td></tr>
+  <tr><td>Penjualan: Pelanggan</td><td class="menu">Laporan Pelanggan</td></tr>
+  <tr><td>Penjualan: Karyawan</td><td class="menu">Laporan Karyawan, Absensi, Komisi Tetap</td></tr>
+  <tr><td>Penjualan: Persediaan</td><td class="menu">Lap. Ringkasan Persediaan, Lap. Detail Persediaan, Laporan Stok Kedaluwarsa, Laporan Serial Number</td></tr>
+  <tr><td>Penjualan: Fasilitas</td><td class="menu">Laporan Utilisasi Zona/Bay</td></tr>
+  <tr><td>Analisa Laporan</td><td class="menu">Waktu Teramai Penjualan, Waktu Teramai Produk, Perputaran Stok, Kepuasan Pelanggan</td></tr>
+  <tr><td>Produk</td><td class="menu">Daftar Produk, Master Resep, Riwayat Impor Produk, Perubahan Harga Terjadwal</td></tr>
+  <tr><td>Pelanggan</td><td class="menu">Daftar Pelanggan, Grup Pelanggan</td></tr>
+  <tr><td>Promosi: Promo &amp; Voucher</td><td class="menu">Promo Total Pembelian</td></tr>
+  <tr><td>Promosi: Loyalti &amp; Poin</td><td class="menu">Katalog Reward, Klaim Reward, Riwayat Poin Customer, Riwayat Poin Partner</td></tr>
+</table></div>
+
+<h3>Master Data, Notifikasi, Sistem</h3>
+<div class="tbl"><table>
+  <tr><th>Kelompok</th><th>Menu</th></tr>
+  <tr><td>Master Data</td><td class="menu">Pusat Master Data, Kendaraan, Luas Kaca, Toko/Dealer</td></tr>
+  <tr><td>Notifikasi</td><td class="menu">Kirim Notifikasi, Kampanye Notifikasi, Templat Notifikasi, Riwayat Notifikasi, Riwayat Notifikasi Partner, Katalog Notifikasi, Log Pengiriman</td></tr>
+  <tr><td>Sistem</td><td class="menu">Histori Aktivitas (catatan siapa mengubah apa; tidak bisa dihapus)</td></tr>
+  <tr><td>Bantuan</td><td class="menu">Panduan, Catatan Panduan</td></tr>
+</table></div>
+
+<h2 class="sec" id="catatan">Catatan penting</h2>
+<div class="card">
+  <ol class="steps">
+    <li><strong>Tidak ada tautan otomatis dari Quotation ke Booking.</strong> Staf membuat booking setelah menindaklanjuti lead.</li>
+    <li><strong>SPK tidak mengubah status booking</strong> (keputusan 2026-09-25). Gunakan filter di daftar Booking untuk menemukan booking yang terlewat diselesaikan.</li>
+    <li><strong>Invoice hanya dokumen.</strong> Tidak membuat jurnal dan tidak punya kolom pajak. Pembukuan terjadi lewat Proses Referral.</li>
+    <li><strong>Pendapatan diakui di Proses Referral</strong>, kecuali bendera pengakuan saat selesai dinyalakan.</li>
+    <li><strong>Daftar harga publik</strong> bergantung pada bendera <code>FEATURE_PRICELIST_FROM_DATABASE</code> (belum diputuskan).</li>
+    <li><strong>Status berbahasa Inggris</strong> (New, Contacted, Closed, Cancelled, Pending, Confirmed, Completed, Approved, Rejected) sengaja dipertahankan di seluruh tampilan.</li>
+    <li><strong>Hak akses mengikuti menu.</strong> Aplikasi staf menampilkan menu menurut hak akses yang sama dengan panel; mengubah akses di User langsung berlaku di aplikasi.</li>
+    <li><strong>Yang belum dikerjakan dan menunggu keputusan</strong> (dari audit ACCURATE): peran Akuntan dan jurnal manual, landed cost, bahan SPT dan faktur pajak, margin per booking (HPP).</li>
+  </ol>
+</div>
+
+<footer>
+  Dokumen ini dihasilkan dari kode sistem per 27 Oktober 2026 dan perlu diperbarui bila ada menu atau alur yang berubah. Bagian alur di atas disusun dari perilaku yang ada di kode dan keputusan yang tercatat; keterangan fungsi menu di katalog sengaja ringkas.
+</footer>
+</main>
+</div>
+
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.esm.min.mjs";
+
+  const root = document.documentElement;
+  const nodes = Array.from(document.querySelectorAll("pre.mermaid"));
+
+  // Simpan sumber tiap diagram (untuk digambar ulang saat tema berganti) dan sebagai teks cadangan di <details>.
+  nodes.forEach((node) => {
+    node.dataset.src = node.innerHTML;
+    const details = document.createElement("details");
+    const summary = document.createElement("summary");
+    summary.textContent = "Lihat sumber diagram (teks)";
+    const pre = document.createElement("pre");
+    pre.textContent = node.textContent.trim();
+    details.append(summary, pre);
+    node.closest(".diagram").appendChild(details);
+  });
+
+  async function drawDiagrams() {
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: root.getAttribute("data-theme") === "dark" ? "dark" : "neutral",
+      securityLevel: "loose",
+      flowchart: { htmlLabels: true, curve: "basis", useMaxWidth: true, wrappingWidth: 150, nodeSpacing: 24, rankSpacing: 36, padding: 8 },
+      themeVariables: { fontFamily: "-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif", fontSize: "14px" }
+    });
+    nodes.forEach((node) => {
+      node.removeAttribute("data-processed");
+      node.innerHTML = node.dataset.src;
+    });
+    await mermaid.run({ nodes });
+  }
+
+  function applyMode(mode) {
+    const systemDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const dark = mode === "dark" || (mode === "auto" && systemDark);
+    root.setAttribute("data-theme", dark ? "dark" : "light");
+    root.setAttribute("data-mode", mode);
+    try { localStorage.setItem("ginnva-flow-theme", mode); } catch (e) {}
+    document.querySelectorAll("[data-set-mode]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.setMode === mode)));
+  }
+
+  document.querySelectorAll("[data-set-mode]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      applyMode(button.dataset.setMode);
+      await drawDiagrams();
+    });
+  });
+
+  // Mode otomatis: ikuti perubahan tema sistem.
+  if (window.matchMedia) {
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", async () => {
+      if (root.getAttribute("data-mode") === "auto") {
+        applyMode("auto");
+        await drawDiagrams();
+      }
+    });
+  }
+
+  applyMode(root.getAttribute("data-mode") || "light");
+  await drawDiagrams();
+</script>
+</body>
+</html>

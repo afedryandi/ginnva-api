@@ -63,6 +63,17 @@ class ViewMaterialMemo extends ViewRecord
             Actions\EditAction::make(),
 
             // ---- Memo pengajuan: setujui / tolak (store manager atau akses penuh), selesai diserahkan (gudang), minta tambahan (pengaju).
+            // Memo buatan gudang sendiri: tutup setelah pengambilan pertama; berikutnya lewat Minta Tambahan (admin atau spv finance).
+            Actions\Action::make('close_direct')
+                ->label('Tutup Memo')
+                ->icon('heroicon-o-lock-closed')
+                ->color('success')
+                ->visible(fn () => app(\App\Services\MaterialMemoRequestService::class)->canCloseDirect(auth()->user(), $this->record))
+                ->requiresConfirmation()
+                ->modalHeading('Tutup memo ini?')
+                ->modalDescription('Setelah ditutup, barang dan jumlahnya terkunci. Pengambilan berikutnya perlu persetujuan admin atau spv finance, lalu dicatat oleh mereka.')
+                ->action(fn () => $this->runStep(fn ($service) => $service->closeDirect($this->record, auth()->user()), 'Memo ditutup.')),
+
             Actions\Action::make('approve_request')
                 ->label('Setujui')
                 ->icon('heroicon-o-check-badge')

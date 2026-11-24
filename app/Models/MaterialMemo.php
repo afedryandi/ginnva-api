@@ -28,6 +28,7 @@ class MaterialMemo extends Model
         'flow',
         'request_status',
         'request_note',
+        'addition_round',
         'submitted_at',
         'approved_by',
         'approved_at',
@@ -80,7 +81,7 @@ class MaterialMemo extends Model
 
     public const REQUEST_STATUS_LABELS = [
         'pending' => 'Menunggu Persetujuan',
-        'approved' => 'Disetujui, silakan hubungi staf gudang',
+        'approved' => 'Disetujui, silakan hubungi staff gudang',
         'rejected' => 'Ditolak',
         'fulfilled' => 'Sudah diserahkan',
     ];
@@ -110,6 +111,12 @@ class MaterialMemo extends Model
         $info = trim($vehicle . ($plate ? ($vehicle !== '' ? ' - ' : '') . $plate : ''));
 
         return $info !== '' ? $info : null;
+    }
+
+    /** Sedang dalam putaran pengambilan tambahan (kedua dan seterusnya): disetujui dan dicatat admin atau spv finance. */
+    public function isAdditionRound(): bool
+    {
+        return (int) $this->addition_round > 0;
     }
 
     public function isRequestFlow(): bool

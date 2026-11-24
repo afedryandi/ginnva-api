@@ -3,128 +3,191 @@
 <head>
     <meta charset="UTF-8">
     <title>E-Warranty Card - {{ $warranty->warranty_code }}</title>
+    {{--
+        Sertifikat E-Warranty (didesain ulang 2026-11-24): pita merah di atas, logo Ginnva, kartu utama berisi produk + QR, pita kode
+        garansi, kartu info berpasangan, dan bar sisa masa berlaku. dompdf tidak mendukung flex/grid/gradient/bayangan, jadi tata letak
+        memakai tabel dan blok berlatar solid. Data yang ditampilkan sama seperti sebelumnya.
+    --}}
+    @php
+        $wordmarkPath = public_path('images/ginnva-wordmark-merah.png');
+        $wordmark = file_exists($wordmarkPath)
+            ? 'data:image/png;base64,' . base64_encode((string) file_get_contents($wordmarkPath))
+            : null;
+
+        $start = \Carbon\Carbon::parse($warranty->installation_date)->startOfDay();
+        $end = \Carbon\Carbon::parse($warranty->expiry_date)->startOfDay();
+        $totalDays = max(1, $start->diffInDays($end));
+        $leftDays = max(0, min($totalDays, (int) now()->startOfDay()->diffInDays($end, false)));
+        $leftPercent = (int) round($leftDays / $totalDays * 100);
+
+        [$statusLabel, $statusBg] = match ($warranty->status) {
+            'expired' => ['Kedaluwarsa', '#c53030'],
+            'pending', 'pending_review' => ['Menunggu', '#b7791f'],
+            default => ['Aktif', '#2f855a'],
+        };
+
+        $categoryLabel = match ($warranty->product_category) {
+            'window_film' => 'Window Film',
+            'ppf' => 'Paint Protection Film (PPF)',
+            'color_change' => 'Color Change Film',
+            default => '',
+        };
+    @endphp
     <style>
-        @page { margin: 14mm 12mm; }
-        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #111; margin: 0; padding: 0; background: #fff; }
+        @page { margin: 0; }
         * { box-sizing: border-box; }
-        .wrapper { width: auto; margin: 0 2mm; border: 8px solid #111; padding: 22px 24px; }
+        body { margin: 0; padding: 0; font-family: 'Helvetica', Arial, sans-serif; color: #1f2430; background: #ffffff; }
 
-        /* Header — brand kiri, QR kanan (dipindah ke sini supaya tidak
-           berebut ruang dengan kolom "Nama Pemilik" di bawah, yang jadi
-           penyebab utama konten terpotong di layout sebelumnya). */
-        .header-table { width: 100%; border-bottom: 3px solid #111; padding-bottom: 14px; margin-bottom: 22px; }
-        .header-table td { vertical-align: top; }
-        .brand { font-size: 24px; font-weight: bold; letter-spacing: 1.5px; }
-        .title { font-size: 11px; color: #777; font-weight: bold; letter-spacing: 0.5px; margin-top: 6px; }
-        .qr-box { text-align: center; }
-        .qr-box img { width: 62px; height: 62px; }
-        .qr-box .qr-caption { font-size: 7px; color: #a0aec0; margin-top: 3px; letter-spacing: 0.3px; }
+        .topbar { height: 14px; background-color: #ed1651; }
+        .page { padding: 26px 40px 30px 40px; }
 
-        /* Grid dasar (info utama) — 2 kolom proporsi 58/42, lebih aman
-           untuk lebar A4 portrait daripada 50/50 dengan nested table. */
-        .grid-table { width: 100%; margin-bottom: 20px; }
-        .grid-table td { padding: 8px 0; vertical-align: top; }
-        .label { color: #718096; font-weight: bold; text-transform: uppercase; font-size: 9px; letter-spacing: 0.5px; }
-        .value { font-size: 13px; font-weight: 600; color: #111; margin-top: 3px; word-wrap: break-word; }
-        .sub-value { font-size: 10px; color: #a0aec0; margin-top: 2px; font-weight: normal; }
+        .label { font-size: 8px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; color: #8a91a0; }
+        .value { font-size: 13px; font-weight: bold; color: #1f2430; margin-top: 4px; }
+        .sub { font-size: 10px; color: #8a91a0; margin-top: 3px; }
 
-        /* Section divider */
-        .section-divider { border-top: 1px solid #e2e8f0; margin: 16px 0 14px 0; }
-        .section-heading { font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.6px; color: #2d3748; margin-bottom: 10px; }
-        .section-heading .tag { display: inline-block; background-color: #edf2f7; color: #4a5568; font-size: 8px; font-weight: bold; padding: 2px 7px; border-radius: 3px; letter-spacing: 0.4px; margin-left: 6px; text-transform: uppercase; vertical-align: middle; }
+        .head { width: 100%; border-collapse: collapse; }
+        .head td { vertical-align: middle; }
+        .doc-kicker { font-size: 8px; letter-spacing: 1.6px; font-weight: bold; color: #ed1651; text-align: right; }
+        .doc-title { font-size: 15px; font-weight: bold; color: #1f2430; text-align: right; margin-top: 3px; }
 
-        /* Tech spec card */
-        .tech-card { background-color: #f9fafb; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px 16px; margin-bottom: 18px; }
-        .tech-table { width: 100%; }
-        .tech-table td { padding: 6px 0; vertical-align: top; width: 50%; }
+        .hero { background-color: #f2f5fa; border-radius: 16px; padding: 22px 24px; margin-top: 22px; }
+        .hero-table { width: 100%; border-collapse: collapse; }
+        .hero-table td { vertical-align: top; }
+        .badge { display: inline-block; padding: 4px 12px; border-radius: 12px; color: #ffffff; font-size: 9px; font-weight: bold; letter-spacing: 0.8px; text-transform: uppercase; }
+        .product { font-size: 24px; font-weight: bold; color: #1f2430; line-height: 1.2; margin-top: 12px; }
+        .category { font-size: 11px; color: #6b7280; margin-top: 4px; }
+        .car { font-size: 12px; color: #1f2430; margin-top: 14px; }
+        .plate { display: inline-block; border: 1.5px solid #1f2430; border-radius: 4px; padding: 1px 7px; margin-left: 6px; font-size: 11px; font-weight: bold; letter-spacing: 1px; background: #ffffff; }
+        .qr { text-align: center; }
+        .qr-frame { display: inline-block; background: #ffffff; border-radius: 12px; padding: 8px; }
+        .qr img { width: 92px; height: 92px; }
+        .qr-caption { font-size: 7px; letter-spacing: 0.8px; font-weight: bold; color: #8a91a0; margin-top: 6px; }
 
-        /* Status */
-        .status-badge { display: inline-block; padding: 3px 10px; color: #fff; font-size: 10px; font-weight: bold; border-radius: 4px; text-transform: uppercase; }
-        .status-active { background-color: #2f855a; }
-        .status-expired { background-color: #c53030; }
-        .status-pending { background-color: #b7791f; }
+        .codebar { background-color: #ed1651; border-radius: 12px; padding: 14px 20px; margin-top: 14px; }
+        .codebar table { width: 100%; border-collapse: collapse; }
+        .codebar td { vertical-align: middle; }
+        .code-label { font-size: 8px; font-weight: bold; letter-spacing: 1.2px; text-transform: uppercase; color: #ffd0dd; }
+        .code { font-size: 22px; font-weight: bold; letter-spacing: 3px; color: #ffffff; text-align: right; }
 
-        /* Footer */
-        .footer { border-top: 1px solid #e2e8f0; padding-top: 14px; font-size: 9px; color: #a0aec0; text-align: center; line-height: 1.5; }
+        .grid { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .grid td { width: 50%; padding: 5px; vertical-align: top; }
+        .cell { background-color: #f7f8fb; border-radius: 12px; padding: 13px 16px; }
+
+        .section { font-size: 9px; font-weight: bold; letter-spacing: 1.2px; text-transform: uppercase; color: #1f2430; margin: 20px 0 6px 5px; }
+        .section .tag { background-color: #fde3ea; color: #ed1651; font-size: 7px; padding: 2px 7px; border-radius: 8px; margin-left: 6px; letter-spacing: 0.8px; }
+
+        .validity { background-color: #f7f8fb; border-radius: 12px; padding: 14px 16px; margin: 15px 5px 0 5px; }
+        .validity table { width: 100%; border-collapse: collapse; }
+        .validity td { vertical-align: bottom; }
+        .bar { height: 8px; border-radius: 4px; background-color: #e3e7ef; margin-top: 10px; }
+        .bar-fill { height: 8px; border-radius: 4px; background-color: #ed1651; }
+
+        .footer { margin-top: 24px; padding-top: 14px; border-top: 1px solid #e3e7ef; text-align: center; font-size: 8px; line-height: 1.6; color: #8a91a0; }
+        .footer strong { color: #1f2430; }
     </style>
 </head>
 <body>
 
-<div class="wrapper">
-    <table class="header-table" cellspacing="0" cellpadding="0">
+<div class="topbar"></div>
+
+<div class="page">
+
+    <table class="head" cellspacing="0" cellpadding="0">
         <tr>
-            <td width="70%">
-                <div class="brand">GINNVA HOUSE</div>
-                <div style="font-size: 9px; color: #555; letter-spacing: 0.4px; margin-top: 3px; font-weight: 600;">PT. GINNVA SHIELD INDONESIA</div>
-                <div class="title">OFFICIAL E-WARRANTY CERTIFICATE</div>
+            <td width="55%">
+                @if($wordmark)
+                    <img src="{{ $wordmark }}" alt="Ginnva" style="height: 34px;">
+                @else
+                    <div style="font-size: 22px; font-weight: bold; color: #ed1651;">GINNVA</div>
+                @endif
             </td>
-            <td width="30%" align="right">
-                {{-- QR code mengarah ke halaman cek garansi publik
-                     (ginnva.id/warranty?code=...), supaya siapapun yang
-                     scan pakai kamera HP biasa (tidak harus app Ginnva)
-                     langsung melihat hasil verifikasi resmi. --}}
-                <div class="qr-box">
-                    <img src="{{ $qrCodeDataUri }}" alt="QR Verifikasi">
+            <td width="45%">
+                <div class="doc-kicker">OFFICIAL E-WARRANTY</div>
+                <div class="doc-title">Sertifikat Garansi</div>
+            </td>
+        </tr>
+    </table>
+
+    {{-- ============ KARTU UTAMA ============ --}}
+    <div class="hero">
+        <table class="hero-table" cellspacing="0" cellpadding="0">
+            <tr>
+                <td width="70%">
+                    <span class="badge" style="background-color: {{ $statusBg }};">{{ $statusLabel }}</span>
+                    <div class="product">{{ $warranty->product_series }}</div>
+                    @if($categoryLabel)
+                        <div class="category">{{ $categoryLabel }}</div>
+                    @endif
+                    <div class="car">
+                        {{ $warranty->car_type }}
+                        @if($warranty->car_plate)<span class="plate">{{ $warranty->car_plate }}</span>@endif
+                    </div>
+                    @if($warranty->vin)
+                        <div class="sub" style="margin-top: 6px;">VIN: {{ $warranty->vin }}</div>
+                    @endif
+                </td>
+                <td width="30%" class="qr">
+                    {{-- QR code mengarah ke halaman cek garansi publik
+                         (ginnva.id/warranty?code=...), supaya siapapun yang
+                         scan pakai kamera HP biasa (tidak harus app Ginnva)
+                         langsung melihat hasil verifikasi resmi. --}}
+                    <div class="qr-frame"><img src="{{ $qrCodeDataUri }}" alt="QR Verifikasi"></div>
                     <div class="qr-caption">SCAN UNTUK VERIFIKASI</div>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="codebar">
+        <table cellspacing="0" cellpadding="0">
+            <tr>
+                <td width="40%"><div class="code-label">Kode E-Warranty</div></td>
+                <td width="60%"><div class="code">{{ $warranty->warranty_code }}</div></td>
+            </tr>
+        </table>
+    </div>
+
+    {{-- ============ INFO UTAMA ============ --}}
+    <table class="grid" cellspacing="0" cellpadding="0">
+        <tr>
+            <td>
+                <div class="cell">
+                    <div class="label">Nama Pemilik</div>
+                    <div class="value">{{ $warranty->customer_name }}</div>
+                </div>
+            </td>
+            <td>
+                <div class="cell">
+                    <div class="label">Dealer Pelaksana</div>
+                    <div class="value">{{ $warranty->dealer_name }}</div>
+                </div>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <div class="cell">
+                    <div class="label">Tanggal Pemasangan</div>
+                    <div class="value">{{ $start->translatedFormat('d F Y') }}</div>
+                </div>
+            </td>
+            <td>
+                <div class="cell">
+                    <div class="label">Berlaku Hingga</div>
+                    <div class="value" style="color: #ed1651;">{{ $end->translatedFormat('d F Y') }}</div>
                 </div>
             </td>
         </tr>
     </table>
 
-    {{-- ============ INFO UTAMA ============ --}}
-    <table class="grid-table" cellspacing="0" cellpadding="0">
-        <tr>
-            <td width="55%">
-                <div class="label">Kode E-Warranty</div>
-                <div class="value" style="color: #2b6cb0; font-size: 16px; font-weight: bold;">{{ $warranty->warranty_code }}</div>
-            </td>
-            <td width="45%">
-                <div class="label">Nama Pemilik</div>
-                <div class="value">{{ $warranty->customer_name }}</div>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <div class="label">Produk Terpasang</div>
-                <div class="value">{{ $warranty->product_series }}</div>
-                @if($warranty->product_category)
-                <div class="sub-value">
-                    {{ match($warranty->product_category) {
-                        'window_film' => 'Window Film',
-                        'ppf' => 'Paint Protection Film (PPF)',
-                        'color_change' => 'Color Change Film',
-                        default => '',
-                    } }}
-                </div>
-                @endif
-            </td>
-            <td>
-                <div class="label">Informasi Kendaraan</div>
-                <div class="value">{{ $warranty->car_type }}</div>
-                <div class="sub-value">Plat: {{ $warranty->car_plate }}@if($warranty->vin)<br>VIN: {{ $warranty->vin }}@endif</div>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <div class="label">Tanggal Pemasangan</div>
-                <div class="value">{{ \Carbon\Carbon::parse($warranty->installation_date)->translatedFormat('d F Y') }}</div>
-            </td>
-            <td>
-                <div class="label">Berlaku Hingga</div>
-                <div class="value">{{ \Carbon\Carbon::parse($warranty->expiry_date)->translatedFormat('d F Y') }}</div>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <div class="label">Dealer Pelaksana</div>
-                <div class="value">{{ $warranty->dealer_name }}</div>
-            </td>
-            <td>
-                <div class="label">Sisa Masa Berlaku</div>
-                <div class="value">{{ $warranty->remaining_days }} Hari</div>
-            </td>
-        </tr>
-    </table>
+    <div class="validity">
+        <table cellspacing="0" cellpadding="0">
+            <tr>
+                <td width="60%"><div class="label">Sisa Masa Berlaku</div></td>
+                <td width="40%" align="right"><div class="value" style="margin-top: 0;">{{ $warranty->remaining_days }} Hari</div></td>
+            </tr>
+        </table>
+        <div class="bar"><div class="bar-fill" style="width: {{ $leftPercent }}%;"></div></div>
+    </div>
 
     {{-- ============ SPESIFIKASI TEKNIS (PPF) ============
          Card terpisah, hanya muncul kalau ada minimal 1 data teknis
@@ -133,95 +196,81 @@
          dst) — dan supaya jelas beda "info umum" vs "data spesifik
          kategori produk". --}}
     @if($warranty->product_category === 'ppf' && ($warranty->installation_position || $warranty->roll_number || $warranty->roll_number_2))
-    <div class="section-heading">Spesifikasi Teknis <span class="tag">PPF</span></div>
-    <div class="tech-card">
-        <table class="tech-table" cellspacing="0" cellpadding="0">
+        <div class="section">Spesifikasi Teknis <span class="tag">PPF</span></div>
+        <table class="grid" cellspacing="0" cellpadding="0" style="margin-top: 0;">
             <tr>
                 <td>
                     @if($warranty->installation_position)
-                    <div class="label">Posisi Pemasangan</div>
-                    <div class="value">
-                        {{ $warranty->installation_position === 'full_body' ? 'Seluruh Bodi' : 'Parsial' }}
-                    </div>
-                    @if($warranty->installation_position === 'partial' && $warranty->installation_position_detail)
-                    <div class="sub-value">{{ $warranty->installation_position_detail }}</div>
-                    @endif
+                        <div class="cell">
+                            <div class="label">Posisi Pemasangan</div>
+                            <div class="value">{{ $warranty->installation_position === 'full_body' ? 'Seluruh Bodi' : 'Parsial' }}</div>
+                            @if($warranty->installation_position === 'partial' && $warranty->installation_position_detail)
+                                <div class="sub">{{ $warranty->installation_position_detail }}</div>
+                            @endif
+                        </div>
                     @endif
                 </td>
                 <td>
                     @if($warranty->roll_number)
-                    <div class="label">Roll Number / ID Material</div>
-                    <div class="value">{{ $warranty->roll_number }}</div>
+                        <div class="cell">
+                            <div class="label">Roll Number / ID Material</div>
+                            <div class="value">{{ $warranty->roll_number }}</div>
+                        </div>
                     @endif
                 </td>
             </tr>
             @if($warranty->roll_number_2)
-            <tr>
-                <td>
-                    {{-- Mobil yang butuh 2 gulungan PPF (biasanya bodi besar) --}}
-                    <div class="label">Roll Number / ID Material (Gulungan Kedua)</div>
-                    <div class="value">{{ $warranty->roll_number_2 }}</div>
-                </td>
-                <td></td>
-            </tr>
+                <tr>
+                    <td>
+                        {{-- Mobil yang butuh 2 gulungan PPF (biasanya bodi besar) --}}
+                        <div class="cell">
+                            <div class="label">Roll Number / ID Material (Gulungan Kedua)</div>
+                            <div class="value">{{ $warranty->roll_number_2 }}</div>
+                        </div>
+                    </td>
+                    <td></td>
+                </tr>
             @endif
         </table>
-    </div>
     @endif
 
     {{-- ============ SPESIFIKASI TEKNIS (Window Film) ============ --}}
     @if($warranty->product_category === 'window_film' && ($warranty->roll_number_front || $warranty->roll_number_side_rear))
-    <div class="section-heading">Spesifikasi Teknis <span class="tag">Window Film</span></div>
-    <div class="tech-card">
-        <table class="tech-table" cellspacing="0" cellpadding="0">
+        <div class="section">Spesifikasi Teknis <span class="tag">WINDOW FILM</span></div>
+        <table class="grid" cellspacing="0" cellpadding="0" style="margin-top: 0;">
             <tr>
                 <td>
                     @if($warranty->roll_number_front)
-                    <div class="label">Roll Number &mdash; Kaca Depan</div>
-                    <div class="value">{{ $warranty->roll_number_front }}</div>
-                    @if($warranty->film_model_front)
-                    <div class="sub-value">Tipe Film: {{ $warranty->film_model_front }}</div>
-                    @endif
+                        <div class="cell">
+                            <div class="label">Roll Number &mdash; Kaca Depan</div>
+                            <div class="value">{{ $warranty->roll_number_front }}</div>
+                            @if($warranty->film_model_front)
+                                <div class="sub">Tipe Film: {{ $warranty->film_model_front }}</div>
+                            @endif
+                        </div>
                     @endif
                 </td>
                 <td>
                     @if($warranty->roll_number_side_rear)
-                    <div class="label">Roll Number &mdash; Samping &amp; Belakang</div>
-                    <div class="value">{{ $warranty->roll_number_side_rear }}</div>
-                    @if($warranty->film_model_side_rear)
-                    <div class="sub-value">Tipe Film: {{ $warranty->film_model_side_rear }}</div>
-                    @endif
+                        <div class="cell">
+                            <div class="label">Roll Number &mdash; Samping &amp; Belakang</div>
+                            <div class="value">{{ $warranty->roll_number_side_rear }}</div>
+                            @if($warranty->film_model_side_rear)
+                                <div class="sub">Tipe Film: {{ $warranty->film_model_side_rear }}</div>
+                            @endif
+                        </div>
                     @endif
                 </td>
             </tr>
         </table>
-    </div>
     @endif
 
-    {{-- ============ STATUS ============ --}}
-    <div class="section-divider"></div>
-    <table class="grid-table" cellspacing="0" cellpadding="0" style="margin-bottom: 0;">
-        <tr>
-            <td>
-                <div class="label">Status Validasi Sistem</div>
-                <div class="value" style="margin-top: 6px;">
-                    @php
-                        $statusClass = match($warranty->status) {
-                            'expired' => 'status-expired',
-                            'pending' => 'status-pending',
-                            default => 'status-active',
-                        };
-                    @endphp
-                    <span class="status-badge {{ $statusClass }}">{{ $warranty->status }}</span>
-                </div>
-            </td>
-        </tr>
-    </table>
-
-    <div class="footer" style="margin-top: 20px;">
-        Sertifikat digital ini diterbitkan secara sah oleh sistem manajemen garansi terpusat Ginnva House · PT. Ginnva Shield Indonesia.<br>
+    <div class="footer">
+        <strong>Ginnva House &middot; PT. Ginnva Shield Indonesia</strong><br>
+        Sertifikat digital ini diterbitkan secara sah oleh sistem manajemen garansi terpusat Ginnva House.<br>
         Segala bentuk pemalsuan atau manipulasi data akan diverifikasi langsung melalui basis data server utama kami.
     </div>
+
 </div>
 
 </body>

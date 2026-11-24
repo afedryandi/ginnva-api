@@ -30,6 +30,7 @@ class RawMaterial extends Model
         'purchase_conversion_factor',
         'current_stock',
         'reorder_point',
+        'withdrawal_multiple',
         'adjustment_note_threshold',
         'preferred_supplier_id',
         'unit_cost',
@@ -42,6 +43,7 @@ class RawMaterial extends Model
     protected $casts = [
         'current_stock' => 'decimal:2',
         'reorder_point' => 'decimal:2',
+        'withdrawal_multiple' => 'decimal:2',
         'adjustment_note_threshold' => 'decimal:2',
         'unit_cost'     => 'decimal:2',
         'purchase_conversion_factor' => 'decimal:4',
@@ -277,6 +279,56 @@ class RawMaterial extends Model
     }
 
     /**
+     * Pesan bila jumlah pengambilan bukan kelipatan yang ditetapkan untuk bahan ini; null bila boleh. Kelipatan kosong = bebas.
+     * Hanya berlaku untuk pengambilan (memo dan Catat Stok Keluar); pengembalian, opname, dan stok terbuang tidak dicek.
+     */
+    public function withdrawalMultipleProblem(float $quantity): ?string
+    {
+        $multiple = (float) ($this->withdrawal_multiple ?? 0);
+
+        if ($multiple <= 0) {
+            return null;
+        }
+
+        $ratio = $quantity / $multiple;
+
+        if (abs($ratio - round($ratio)) < 1e-6 && round($ratio) >= 1) {
+            return null;
+        }
+
+        $fmt = fn (float $n) => rtrim(rtrim(number_format($n, 2, ',', '.'), '0'), ',');
+
+        return "{$this->name} hanya bisa diambil dalam kelipatan {$fmt($multiple)} {$this->unit} (contoh: {$fmt($multiple)}, {$fmt($multiple * 2)}, {$fmt($multiple * 3)}).";
+    }
+
+    /**
+     * Menolak pengambilan yang bukan kelipatan. Akses penuh boleh keluar dari kelipatan dengan catatan alasan ($note terisi);
+     * $allowFullAccessWithoutNote untuk koreksi yang sudah tercatat di riwayat aktivitas.
+     *
+     * @throws \InvalidArgumentException
+     */
+    public function assertWithdrawalMultiple(float $quantity, ?int $userId, ?string $note = null, bool $allowFullAccessWithoutNote = false): void
+    {
+        $problem = $this->withdrawalMultipleProblem($quantity);
+
+        if ($problem === null) {
+            return;
+        }
+
+        $user = $userId ? \App\Models\User::find($userId) : null;
+
+        if ($user?->isFullAccess()) {
+            if ($allowFullAccessWithoutNote || trim((string) $note) !== '') {
+                return;
+            }
+
+            throw new \InvalidArgumentException($problem . ' Untuk mengambil di luar kelipatan, isi catatan alasan.');
+        }
+
+        throw new \InvalidArgumentException($problem);
+    }
+
+    /**
      * Catat 1 kejadian masuk/keluar SEKALIGUS update current_stock —
      * berbeda dari InventoryItem::recordMovement() yang cuma toggle
      * status, di sini quantity-nya harus dijumlah/dikurangkan. Dibungkus
@@ -300,21 +352,38 @@ class RawMaterial extends Model
      *
      * @throws \InvalidArgumentException kalau stok keluar melebihi stok yang tersedia.
      */
-    public function recordMovement(string $type, float $quantity, ?int $userId, ?string $note = null, ?string $receivedDate = null, ?string $expiryDate = null, ?float $unitCost = null, ?int $storeId = null, ?string $sourceType = null, ?int $sourceId = null): RawMaterialMovement
+    public function recordMovement(string $type, float $quantity, ?int $userId, ?string $note = null, ?string $receivedDate = null, ?string $expiryDate = null, ?float $unitCost = null, ?int $storeId = null, ?string $sourceType = null, ?int $sourceId = null, ?int $supplierId = null, ?string $invoiceNumber = null, ?int $stockBatchId = null): RawMaterialMovement
     {
         if ($quantity <= 0) {
             throw new \InvalidArgumentException('Jumlah harus lebih besar dari 0.');
         }
 
-        return DB::transaction(function () use ($type, $quantity, $userId, $note, $receivedDate, $expiryDate, $unitCost, $storeId, $sourceType, $sourceId) {
+        return DB::transaction(function () use ($type, $quantity, $userId, $note, $receivedDate, $expiryDate, $unitCost, $storeId, $sourceType, $sourceId, $supplierId, $invoiceNumber, $stockBatchId) {
             $material = self::where('id', $this->id)->lockForUpdate()->firstOrFail();
+
+            // Catat Stok Keluar manual (bukan memo, stok terbuang, atau opname) harus kelipatan.
+            if ($type === 'out' && $sourceType === null) {
+                $material->assertWithdrawalMultiple($quantity, $userId, $note);
+            }
 
             if ($type === 'out' && $material->current_stock < $quantity) {
                 throw new \InvalidArgumentException("Stok tidak cukup — sisa stok saat ini {$material->current_stock} {$material->unit}.");
             }
 
             if ($type === 'in') {
+                // Setiap stok masuk membuka satu Batch Penerimaan (nomor otomatis); pemasok dan faktur opsional.
+                // $stockBatchId: pakai batch yang sudah dibuka pemanggil (mis. satu import Excel = satu batch untuk semua baris).
+                $stockBatch = $stockBatchId
+                    ? StockBatch::findOrFail($stockBatchId)
+                    : StockBatch::open(StockBatch::TYPE_RAW_MATERIAL, [
+                        'received_date' => $receivedDate,
+                        'supplier_id' => $supplierId,
+                        'invoice_number' => $invoiceNumber,
+                        'created_by' => $userId,
+                    ]);
+
                 $material->batches()->create([
+                    'stock_batch_id' => $stockBatch->id,
                     'quantity' => $quantity,
                     // Opsional per batch — supaya valuasi stok bisa dihitung
                     // dari harga beli batch itu SENDIRI, bukan cuma 1 harga
@@ -334,7 +403,7 @@ class RawMaterial extends Model
                     $material->update(['unit_cost' => $unitCost]);
                 }
             } else {
-                static::consumeBatchesFifo($material, $quantity);
+                $allocations = static::consumeBatchesFifo($material, $quantity)['allocations'];
             }
 
             $material->update([
@@ -353,6 +422,93 @@ class RawMaterial extends Model
                 'note' => $note,
                 'source_type' => $sourceType,
                 'source_id' => $sourceId,
+                'batch_allocations' => $type === 'out' && ! empty($allocations) ? $allocations : null,
+                'user_id' => $userId,
+                'store_id' => $storeId,
+            ]);
+
+            $this->setRawAttributes($material->getAttributes());
+
+            return $movement;
+        });
+    }
+
+    /**
+     * Pengembalian lewat memo: bahan masuk lagi ke batch asalnya (batch yang tadi terpakai untuk memo ini, yang terakhir terpakai
+     * dipulihkan duluan), TANPA membuka Batch Penerimaan baru. Sisa yang tidak bisa dipetakan (pergerakan lama tanpa catatan batch, atau
+     * batch asalnya sudah terhapus) ditambahkan ke batch terlama yang masih ada; bila bahan tidak punya batch sama sekali, dibuat satu
+     * batch tanpa Batch Penerimaan supaya stok dan batch tetap sama.
+     */
+    public function returnToOriginalBatches(float $quantity, ?int $userId, ?string $note, ?int $storeId, int $memoId): RawMaterialMovement
+    {
+        if ($quantity <= 0) {
+            throw new \InvalidArgumentException('Jumlah harus lebih besar dari 0.');
+        }
+
+        return DB::transaction(function () use ($quantity, $userId, $note, $storeId, $memoId) {
+            $material = self::where('id', $this->id)->lockForUpdate()->firstOrFail();
+            $remaining = $quantity;
+            $restored = [];
+
+            $drawn = RawMaterialMovement::query()
+                ->where('raw_material_id', $material->id)
+                ->where('type', 'out')
+                ->where('source_type', 'memo')
+                ->where('source_id', $memoId)
+                ->whereNotNull('batch_allocations')
+                ->orderByDesc('id')
+                ->get();
+
+            foreach ($drawn as $movement) {
+                foreach (array_reverse($movement->batch_allocations ?? []) as $allocation) {
+                    if ($remaining <= 0) {
+                        break 2;
+                    }
+
+                    $batch = $material->batches()->whereKey($allocation['batch_id'] ?? 0)->lockForUpdate()->first();
+
+                    if (! $batch) {
+                        continue;
+                    }
+
+                    $give = min((float) ($allocation['qty'] ?? 0), $remaining);
+
+                    if ($give <= 0) {
+                        continue;
+                    }
+
+                    $batch->increment('quantity', $give);
+                    $remaining = round($remaining - $give, 2);
+                    $restored[] = ['batch_id' => $batch->id, 'qty' => $give];
+                }
+            }
+
+            if ($remaining > 0) {
+                $fallback = $material->batches()->orderBy('received_date')->orderBy('id')->lockForUpdate()->first();
+
+                if ($fallback) {
+                    $fallback->increment('quantity', $remaining);
+                } else {
+                    $fallback = $material->batches()->create([
+                        'quantity' => $remaining,
+                        'unit_cost' => $material->unit_cost,
+                        'received_date' => now()->toDateString(),
+                        'created_by' => $userId,
+                    ]);
+                }
+
+                $restored[] = ['batch_id' => $fallback->id, 'qty' => $remaining];
+            }
+
+            $material->update(['current_stock' => $material->current_stock + $quantity]);
+
+            $movement = $material->movements()->create([
+                'type' => 'in',
+                'quantity' => $quantity,
+                'unit_cost' => $material->unit_cost,
+                'note' => $note,
+                'source_type' => 'memo',
+                'source_id' => $memoId,
                 'user_id' => $userId,
                 'store_id' => $storeId,
             ]);
@@ -375,6 +531,7 @@ class RawMaterial extends Model
         $remaining = $quantity;
         $consumed = 0.0;
         $cost = 0.0;
+        $allocations = [];
 
         $batches = $material->batches()->where('quantity', '>', 0)->lockForUpdate()->get();
 
@@ -394,9 +551,10 @@ class RawMaterial extends Model
             $remaining = round($remaining - $take, 2);
             $consumed += $take;
             $cost += $take * (float) ($batch->unit_cost ?? $material->unit_cost ?? 0);
+            $allocations[] = ['batch_id' => $batch->id, 'qty' => $take];
         }
 
-        return ['quantity' => $consumed, 'cost' => $cost];
+        return ['quantity' => $consumed, 'cost' => $cost, 'allocations' => $allocations];
     }
     /**
      * Stock opname — staff input hasil hitung fisik SEBENARNYA, sistem

@@ -88,7 +88,7 @@ class RawMaterialController extends Controller
     {
         $cost = $this->canSeeCost($request) ? ['unit_cost'] : [];
 
-        $material->setVisible(array_merge(['id', 'name', 'code', 'category', 'unit', 'purchase_unit', 'purchase_conversion_factor', 'current_stock', 'reorder_point', 'adjustment_note_threshold', 'movements', 'batches'], $cost));
+        $material->setVisible(array_merge(['id', 'name', 'code', 'category', 'unit', 'purchase_unit', 'purchase_conversion_factor', 'current_stock', 'reorder_point', 'withdrawal_multiple', 'adjustment_note_threshold', 'movements', 'batches'], $cost));
         $this->shapeMovements($material->movements, $request);
         foreach ($material->batches as $batch) {
             $batch->setVisible(array_merge(['id', 'quantity', 'received_date', 'expiry_date', 'is_adjustment'], $cost));
@@ -134,7 +134,7 @@ class RawMaterialController extends Controller
         // sudah dimuat (bukan panggil RawMaterial::earliestActiveExpiryDate()
         // per baris), supaya tidak N+1 query untuk 30 baris hasil.
         $query = RawMaterial::query()->active()
-            ->select(['id', 'name', 'code', 'category', 'unit', 'current_stock', 'reorder_point'])
+            ->select(['id', 'name', 'code', 'category', 'unit', 'current_stock', 'reorder_point', 'withdrawal_multiple'])
             ->with(['batches' => fn ($q) => $q->where('quantity', '>', 0)->whereNotNull('expiry_date')])
             ->when($search !== '', fn ($q) => $q->where(fn ($inner) => $inner->where('name', 'like', "%{$search}%")
                 ->orWhere('code', 'like', "%{$search}%")))
@@ -376,6 +376,9 @@ class RawMaterialController extends Controller
             // Opsional, cuma relevan untuk type=in — harga beli batch ini
             // sendiri (untuk valuasi stok), lihat RawMaterial::recordMovement().
             'unit_cost' => 'nullable|numeric|min:0|max:999999999',
+            // Opsional (Batch Penerimaan): hanya untuk type=in.
+            'supplier_id' => 'nullable|integer|exists:suppliers,id',
+            'invoice_number' => 'nullable|string|max:80',
         ]);
 
         if ($validator->fails()) {
@@ -409,6 +412,10 @@ class RawMaterialController extends Controller
                 $request->filled('unit_cost') && $this->canSeeCost($request) ? (float) $request->unit_cost : null,
                 // Penanda cabang pencatat, supaya kartu stok per cabang tidak kehilangan catatan dari HP.
                 $request->user('api')->store_id,
+                null,
+                null,
+                $request->filled('supplier_id') ? (int) $request->supplier_id : null,
+                $request->invoice_number,
             );
         } catch (\InvalidArgumentException $e) {
             return response()->json([

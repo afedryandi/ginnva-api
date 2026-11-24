@@ -150,8 +150,8 @@ class Booking extends Model
     }
 
     /**
-     * Lama pengerjaan bawaan (hari): PPF Eksterior 3 hari, Interior 1 hari, keduanya dijumlahkan (4 hari); selain PPF 1 hari. Yang belum menentukan
-     * area dihitung Eksterior. Staf tetap bisa mengubah angkanya di form.
+     * Lama pengerjaan bawaan (hari): PPF Eksterior 3 hari, Interior saja 1 hari; Eksterior dan Interior sekaligus tetap 3 hari (Interior tidak
+     * menambah hari kerja, 2026-11-24); selain PPF 1 hari. Yang belum menentukan area dihitung Eksterior. Staf tetap bisa mengubah angkanya.
      */
     public static function defaultDurationDays(bool $ppf, bool $exterior, bool $interior): int
     {
@@ -159,7 +159,7 @@ class Booking extends Model
             return self::DEFAULT_DURATION_DAYS_DEFAULT;
         }
 
-        return (($exterior || ! $interior) ? self::DEFAULT_DURATION_DAYS_PPF : 0) + ($interior ? self::DEFAULT_DURATION_DAYS_PPF_INTERIOR : 0);
+        return ($exterior || ! $interior) ? self::DEFAULT_DURATION_DAYS_PPF : self::DEFAULT_DURATION_DAYS_PPF_INTERIOR;
     }
 
     public function getDisplayPhoneNumberAttribute(): string
@@ -177,7 +177,7 @@ class Booking extends Model
     // selesai 1 hari.
     public const DEFAULT_DURATION_DAYS_PPF     = 3;
     public const DEFAULT_DURATION_DAYS_DEFAULT = 1;
-    // Pemasangan PPF Interior (sendiri atau menambah Eksterior): 1 hari.
+    // Pemasangan PPF Interior saja: 1 hari (bila Eksterior ikut dipilih, lamanya mengikuti Eksterior).
     public const DEFAULT_DURATION_DAYS_PPF_INTERIOR = 1;
 
     // Keputusan atasan 2026-09-19 (Topik 1, "Keputusan-PPN-DP-Produk-

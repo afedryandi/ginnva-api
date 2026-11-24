@@ -54,6 +54,49 @@ class PurchaseRequestNotifier
     }
 
     /**
+     * Permohonan dengan satu atau lebih barang (PurchaseRequestGroup): satu pemberitahuan untuk seluruh permohonan, bukan satu per barang.
+     * Permohonan satu barang memakai pesan lama supaya isinya tetap sama.
+     */
+    public function notifyNewGroup(\App\Models\PurchaseRequestGroup $group): void
+    {
+        try {
+            $group->loadMissing(['lines', 'requester:id,name', 'store:id,name']);
+
+            if ($group->lines->count() === 1) {
+                $this->notifyNew($group->lines->first());
+
+                return;
+            }
+
+            $ids = $this->approverIds()->reject(fn (int $id) => $id === $group->requested_by)->values();
+
+            if ($ids->isEmpty() || $group->lines->isEmpty()) {
+                return;
+            }
+
+            $names = $group->lines->take(3)->pluck('item_name')->implode(', ');
+            $more = $group->lines->count() > 3 ? ' dan ' . ($group->lines->count() - 3) . ' lainnya' : '';
+            $who = $group->requester?->name ?? 'Staff';
+
+            app(StaffNotifier::class)->toUsers(
+                $ids,
+                'Permohonan Pembelian Baru',
+                "{$who} mengajukan {$group->lines->count()} barang ({$names}{$more})" . ($group->store ? " untuk {$group->store->name}" : '') . ". Nomor {$group->group_number}, menunggu persetujuan."
+            );
+
+            app(ApprovalMailer::class)->requested(
+                'Permohonan Pembelian',
+                $who,
+                "{$group->group_number} · {$group->lines->count()} barang: {$names}{$more}" . ($group->reason ? " · {$group->reason}" : ''),
+                $group->store?->name,
+                $ids,
+            );
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
+    /**
      * Ingatkan penyetuju untuk permohonan yang menunggu lebih dari 1 hari; satu permohonan paling sering sekali per hari.
      *
      * @return int jumlah permohonan yang diingatkan

@@ -145,6 +145,12 @@ class BookingController extends Controller
 
             // Urutan tetap (kaca film, PPF, detailing, premium wash) supaya service_type konsisten untuk cek duplikat.
             $selected = collect($serviceKeys)->filter(fn (string $key) => in_array($key, $request->input('services'), true))->values();
+
+            // PPF sudah termasuk Detailing dan Premium Wash (2026-11-24): keduanya dibuang diam-diam bila ikut terkirim bersama PPF, supaya
+            // tidak tercatat ganda (aplikasi sudah menyembunyikannya; ini menutup versi aplikasi lama dan permintaan langsung).
+            if ($selected->contains('ppf')) {
+                $selected = $selected->reject(fn (string $key) => in_array($key, ['detailing', 'premium_wash'], true))->values();
+            }
             $serviceType = $selected->map(fn (string $key) => BookingServiceType::labelFor($key))->implode(', ');
 
             foreach (BookingServiceType::FLAGS as $key => $column) {

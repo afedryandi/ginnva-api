@@ -39,6 +39,11 @@ class MaterialMemoStockService
             throw new \InvalidArgumentException("{$material->name} sudah dinonaktifkan dan tidak bisa ditambahkan ke memo.");
         }
 
+        // Pengambilan bahan baku harus kelipatan yang ditetapkan di Daftar Bahan Baku (akses penuh boleh dengan catatan alasan).
+        if ($material instanceof \App\Models\RawMaterial) {
+            $material->assertWithdrawalMultiple($qtyTaken, $userId, $conditionNotes);
+        }
+
         return DB::transaction(function () use ($material, $itemType, $memo, $qtyTaken, $userId, $conditionNotes) {
             // Penanda cabang (Topik 4, Fase 1, 2026-09-19) -- ini SATU-
             // SATUNYA event yang benar-benar "pemakaian bahan" per
@@ -155,9 +160,8 @@ class MaterialMemoStockService
      *         parameter ini murni supaya admin yang KEBETULAN tahu harga
      *         sebenarnya bisa isi manual, bukan solusi otomatis.
      *
-     * @param  string|null  $expiryDate  Opsional, hanya untuk bahan baku: tanggal kedaluwarsa batch yang dibuat oleh pengembalian
-     *         ini. Sistem tidak menyimpan batch mana yang dulu terpakai, jadi bahan yang kembali selalu menjadi batch BARU (tanggal
-     *         masuk hari ini); tanpa tanggal ini peringatan kedaluwarsanya hilang.
+     * @param  string|null  $expiryDate  Tidak dipakai lagi (dipertahankan agar pemanggil lama tidak rusak): bahan baku yang kembali masuk ke
+     *         batch asalnya (kedaluwarsanya ikut batch itu), tidak lagi membuka batch baru.
      *
      * @throws \InvalidArgumentException
      */
@@ -198,8 +202,12 @@ class MaterialMemoStockService
                 // salah masuk ke parameter lain (mis. jadi $receivedDate
                 // di RawMaterial) karena $material union type keduanya.
                 // expiryDate hanya dikenal RawMaterial::recordMovement(); barang habis pakai tidak punya batch.
-                $args = ['unitCost' => $unitCost, 'storeId' => $memo->store_id, 'sourceType' => 'memo', 'sourceId' => $memo->id] + ($material instanceof RawMaterial && $expiryDate ? ['expiryDate' => $expiryDate] : []);
-                $material->recordMovement('in', $qtyReturned, $userId, self::buildNote($memo, 'pengembalian'), ...$args);
+                if ($material instanceof RawMaterial) {
+                    // Bahan baku kembali ke batch asalnya, tidak membuka Batch Penerimaan baru.
+                    $material->returnToOriginalBatches($qtyReturned, $userId, self::buildNote($memo, 'pengembalian'), $memo->store_id, $memo->id);
+                } else {
+                    $material->recordMovement('in', $qtyReturned, $userId, self::buildNote($memo, 'pengembalian'), unitCost: $unitCost, storeId: $memo->store_id, sourceType: 'memo', sourceId: $memo->id);
+                }
             }
 
             $locked->update([
@@ -259,8 +267,11 @@ class MaterialMemoStockService
             $movementNote = self::buildNote($memo, 'koreksi pengembalian', $note);
 
             if ($delta > 0) {
-                $args = ['storeId' => $memo->store_id, 'sourceType' => 'memo', 'sourceId' => $memo->id] + ($material instanceof RawMaterial && $expiryDate ? ['expiryDate' => $expiryDate] : []);
-                $material->recordMovement('in', $delta, $userId, $movementNote, ...$args);
+                if ($material instanceof RawMaterial) {
+                    $material->returnToOriginalBatches($delta, $userId, $movementNote, $memo->store_id, $memo->id);
+                } else {
+                    $material->recordMovement('in', $delta, $userId, $movementNote, storeId: $memo->store_id, sourceType: 'memo', sourceId: $memo->id);
+                }
             } else {
                 $material->recordMovement('out', abs($delta), $userId, $movementNote, storeId: $memo->store_id, sourceType: 'memo', sourceId: $memo->id);
             }
@@ -291,6 +302,11 @@ class MaterialMemoStockService
 
         if (! $material) {
             throw new \InvalidArgumentException('Barang aslinya sudah tidak ada di sistem.');
+        }
+
+        // Koreksi jumlah hanya oleh akses penuh; boleh di luar kelipatan (tercatat di riwayat aktivitas).
+        if ($material instanceof \App\Models\RawMaterial) {
+            $material->assertWithdrawalMultiple($newQty, $userId, null, allowFullAccessWithoutNote: true);
         }
 
         DB::transaction(function () use ($material, $memoItem, $newQty, $userId, $memo, $unitCost) {

@@ -42,7 +42,13 @@ class MaterialMemoRequestService
             return false;
         }
 
-        return $user->isFullAccess() || ($user->isStoreManager() && (int) $user->store_id === (int) $memo->store_id);
+        // Pengambilan tambahan: admin atau spv finance (tidak dibatasi toko, karena akun kantor dipakai bersama), bukan store manager.
+        if ($memo->isAdditionRound()) {
+            return $user->canHandleMemoAdditions();
+        }
+
+        // Pengambilan pertama: store manager tokonya; admin dan spv finance sebagai cadangan bila store manager tidak ada (2026-11-24).
+        return $user->canHandleMemoAdditions() || ($user->isStoreManager() && (int) $user->store_id === (int) $memo->store_id);
     }
 
     public function hasStockAccess(User $user, string $type): bool
@@ -55,15 +61,38 @@ class MaterialMemoRequestService
         };
     }
 
-    /** Gudang = akun yang bisa mengubah stok minimal satu jenis barang (atau akses penuh), dan bukan pengaju memo. */
+    /** Pengembalian dicatat gudang (pemegang menu jenis barangnya, pengaju yang gudang pun boleh) atau akses penuh. */
+    public function canRecordReturnFor(User $user, string $type): bool
+    {
+        return $user->isFullAccess() || $this->hasStockAccess($user, $type);
+    }
+
+    public function hasAnyStockAccess(User $user): bool
+    {
+        foreach (self::ITEM_TYPES as $type) {
+            if ($this->hasStockAccess($user, $type)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Gudang = akun yang bisa mengubah stok minimal satu jenis barang (atau akses penuh). Staf gudang boleh mencatat barang di memo
+     * pengajuannya sendiri setelah disetujui store manager (2026-11-24); pengaju tanpa menu barang (installer) tidak.
+     */
     public function canHandOver(User $user, MaterialMemo $memo): bool
     {
-        if ((int) $memo->created_by === (int) $user->id) {
-            return false;
+        $isCreator = (int) $memo->created_by === (int) $user->id;
+
+        // Pengambilan tambahan dicatat admin atau spv finance (bukan pengaju, bukan staf gudang).
+        if ($memo->isAdditionRound() && ! $user->isFullAccess()) {
+            return ! $isCreator && $user->canHandleMemoAdditions();
         }
 
         if ($user->isFullAccess()) {
-            return true;
+            return ! $isCreator;
         }
 
         foreach (self::ITEM_TYPES as $type) {
@@ -132,6 +161,8 @@ class MaterialMemoRequestService
 
             $locked->update([
                 'request_status' => MaterialMemo::REQ_PENDING,
+                // Minta tambahan setelah selesai diserahkan = putaran pengambilan tambahan baru (persetujuan dan pencatat berbeda).
+                'addition_round' => $locked->request_status === MaterialMemo::REQ_FULFILLED ? (int) $locked->addition_round + 1 : (int) $locked->addition_round,
                 'request_note' => ($note !== null && trim($note) !== '') ? trim($note) : $locked->request_note,
                 'submitted_at' => now(),
                 'rejected_by' => null,
@@ -157,7 +188,9 @@ class MaterialMemoRequestService
             }
 
             if (! $this->canApprove($by, $locked)) {
-                throw new InvalidArgumentException('Memo ini hanya bisa disetujui store manager tokonya atau akses penuh, dan bukan oleh pengajunya sendiri.');
+                throw new InvalidArgumentException($locked->isAdditionRound()
+                    ? 'Pengambilan tambahan hanya bisa disetujui admin atau spv finance (atau akses penuh), dan bukan oleh pengajunya sendiri.'
+                    : 'Memo ini hanya bisa disetujui store manager tokonya atau akses penuh, dan bukan oleh pengajunya sendiri.');
             }
 
             $locked->update(['request_status' => MaterialMemo::REQ_APPROVED, 'approved_by' => $by->id, 'approved_at' => now()]);
@@ -184,7 +217,9 @@ class MaterialMemoRequestService
             }
 
             if (! $this->canApprove($by, $locked)) {
-                throw new InvalidArgumentException('Memo ini hanya bisa diputuskan store manager tokonya atau akses penuh, dan bukan oleh pengajunya sendiri.');
+                throw new InvalidArgumentException($locked->isAdditionRound()
+                    ? 'Pengambilan tambahan hanya bisa diputuskan admin atau spv finance (atau akses penuh), dan bukan oleh pengajunya sendiri.'
+                    : 'Memo ini hanya bisa diputuskan store manager tokonya atau akses penuh, dan bukan oleh pengajunya sendiri.');
             }
 
             $locked->update(['request_status' => MaterialMemo::REQ_REJECTED, 'rejected_by' => $by->id, 'rejected_at' => now(), 'reject_reason' => trim($reason)]);
@@ -193,6 +228,60 @@ class MaterialMemoRequestService
         });
 
         $this->notifyRejected($locked, $by);
+
+        return $locked;
+    }
+
+    // ------------------------------------------------------------- menutup memo buatan gudang sendiri
+
+    /**
+     * Memo buatan staf gudang sendiri (alur langsung) ditutup setelah pengambilan pertama (2026-11-24), sama seperti memo pengajuan yang
+     * selesai diserahkan. Hanya pembuatnya, dan hanya untuk akun non-akses-penuh (akses penuh tetap bebas mengubah memonya).
+     */
+    public function canCloseDirect(User $user, MaterialMemo $memo): bool
+    {
+        if ($memo->isRequestFlow() || $memo->isBookingLocked() || $user->isFullAccess()) {
+            return false;
+        }
+
+        return (int) $memo->created_by === (int) $user->id && $memo->items()->exists();
+    }
+
+    /**
+     * Tutup memo langsung: berpindah ke alur pengajuan dalam keadaan Sudah diserahkan dan terkunci, sehingga pengambilan berikutnya memakai
+     * aturan tambahan yang sama (Minta Tambahan, disetujui dan dicatat admin atau spv finance).
+     *
+     * @throws InvalidArgumentException
+     */
+    public function closeDirect(MaterialMemo $memo, User $by): MaterialMemo
+    {
+        $locked = DB::transaction(function () use ($memo, $by) {
+            $locked = MaterialMemo::withoutGlobalScopes()->whereKey($memo->id)->lockForUpdate()->firstOrFail();
+
+            if ($locked->isRequestFlow()) {
+                throw new InvalidArgumentException('Memo ini sudah ditutup.');
+            }
+
+            if (! $this->canCloseDirect($by, $locked)) {
+                throw new InvalidArgumentException('Memo ini hanya bisa ditutup oleh pembuatnya, dan sudah harus berisi minimal satu barang.');
+            }
+
+            $locked->update([
+                'flow' => MaterialMemo::FLOW_REQUEST,
+                'request_status' => MaterialMemo::REQ_FULFILLED,
+                'submitted_at' => $locked->created_at,
+                'approved_at' => $locked->created_at,
+                'fulfilled_by' => $by->id,
+                'fulfilled_at' => now(),
+                'unlocked_at' => null,
+                'unlocked_by' => null,
+                'unlock_reason' => null,
+            ]);
+
+            return $locked;
+        });
+
+        $this->notifyFulfilled($locked, $by);
 
         return $locked;
     }
@@ -211,7 +300,9 @@ class MaterialMemoRequestService
         }
 
         if (! $this->canHandOver($by, $locked)) {
-            throw new InvalidArgumentException('Hanya akun yang punya menu barangnya (dan bukan pengaju memo) yang bisa mencatat penyerahan.');
+            throw new InvalidArgumentException($locked->isAdditionRound()
+                ? 'Pengambilan tambahan hanya bisa dicatat admin atau spv finance (atau akses penuh), bukan staff gudang.'
+                : 'Hanya akun yang punya menu barangnya (dan bukan pengaju memo) yang bisa mencatat penyerahan.');
         }
 
         return $locked;
@@ -293,15 +384,17 @@ class MaterialMemoRequestService
      */
     public function recordReturn(MaterialMemo $memo, MaterialMemoItem $item, User $by, float $qtyReturned): void
     {
-        if (! in_array($memo->request_status, [MaterialMemo::REQ_APPROVED, MaterialMemo::REQ_FULFILLED], true)) {
-            throw new InvalidArgumentException('Pengembalian bisa dicatat setelah memo disetujui.');
+        // Pengembalian menyangkut barang yang sudah diambil, jadi tidak tergantung status maupun putaran: tetap bisa dicatat saat Minta
+        // Tambahan sedang menunggu persetujuan (2026-11-24). Barangnya sendiri sudah ada di memo, hanya booking Selesai yang menahan.
+        if ($memo->request_status === MaterialMemo::REQ_REJECTED && ! $memo->items()->exists()) {
+            throw new InvalidArgumentException('Memo ini belum punya barang yang diambil.');
         }
 
         if ($memo->isBookingLocked()) {
             throw new InvalidArgumentException('Booking-nya sudah selesai, jadi memo ini terkunci.');
         }
 
-        if (! $this->canHandOver($by, $memo) || (! $by->isFullAccess() && ! $this->hasStockAccess($by, $item->item_type))) {
+        if (! $this->canRecordReturnFor($by, $item->item_type)) {
             throw new InvalidArgumentException('Pengembalian dicatat oleh gudang (pemegang menu barangnya), bukan pengaju memo.');
         }
 
@@ -344,8 +437,7 @@ class MaterialMemoRequestService
      */
     public function setMeters(MaterialMemo $memo, MaterialMemoItem $item, User $by, float $meters): void
     {
-        $allowed = $by->isFullAccess()
-            || ((int) $memo->created_by !== (int) $by->id && $this->hasStockAccess($by, 'inventory_item'));
+        $allowed = $by->isFullAccess() || $this->hasStockAccess($by, 'inventory_item');
 
         if (! $allowed) {
             throw new InvalidArgumentException('Meter gulungan diisi oleh staff gudang (pemegang menu Produk PPF/WF), bukan pengaju memo.');
@@ -368,6 +460,50 @@ class MaterialMemoRequestService
     {
         return collect([$memo->memo_number, $memo->vehicle_info, $memo->spk_number ? "SPK {$memo->spk_number}" : null, $memo->request_note])
             ->filter()->implode(' · ');
+    }
+
+    /**
+     * Memo yang dibuat staf gudang sendiri (alur langsung, tanpa pengajuan installer) berjalan tanpa persetujuan, jadi store manager toko itu
+     * diberi tahu agar tetap ada pengawasan (2026-11-24). Satu pemberitahuan per memo (saat barang pertamanya dicatat), bukan per barang.
+     * Tidak dikirim untuk memo alur pengajuan (store manager sudah jadi penyetuju), maupun memo buatan store manager atau akses penuh.
+     */
+    public function notifyDirectMemoItems(MaterialMemo $memo, ?MaterialMemoItem $firstItem = null): void
+    {
+        try {
+            if ($memo->isRequestFlow()) {
+                return;
+            }
+
+            $creator = $memo->created_by ? User::find($memo->created_by) : null;
+
+            if (! $creator || $creator->isFullAccess() || $creator->isStoreManager()) {
+                return;
+            }
+
+            if (! \Illuminate\Support\Facades\Cache::add("memo-direct-notified:{$memo->id}", 1, now()->addDays(30))) {
+                return;
+            }
+
+            $ids = User::query()->where('is_active', true)->get()
+                ->filter(fn (User $u) => $u->isStoreManager() && (int) $u->store_id === (int) $memo->store_id && (int) $u->id !== (int) $creator->id)
+                ->pluck('id')->values();
+
+            if ($ids->isEmpty()) {
+                return;
+            }
+
+            $memo->loadMissing('store:id,name');
+            $item = $firstItem?->item_name;
+
+            app(StaffNotifier::class)->toUsers(
+                $ids,
+                'Memo Barang Dibuat Gudang',
+                "{$creator->name} mencatat pengambilan barang" . ($item ? " ({$item})" : '') . ($memo->store ? " untuk {$memo->store->name}" : '') . '. ' . $this->summary($memo),
+                color: 'info',
+            );
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     private function notifySubmitted(MaterialMemo $memo): void

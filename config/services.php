@@ -77,6 +77,19 @@ return [
     // routes/console.php) -- audit framework 2026-09-14, "Jadwal backup
     // database otomatis". rclone_remote OPSIONAL: kalau kosong, backup
     // tetap dibuat & disimpan lokal, cuma tidak ada salinan off-site.
+    // Push lewat Expo tidak memakai kredensial server. API lokal dengan salinan token asli bisa menjangkau ponsel sungguhan, jadi di lingkungan
+    // lokal push dilewati kecuali PUSH_ALLOW_LOCAL=true (lihat PushNotificationService::sendingAllowed).
+    // Push web PWA panel admin (2026-11-24): kunci dibuat dengan `php artisan webpush:keys`.
+    'webpush' => [
+        'public_key' => env('WEBPUSH_VAPID_PUBLIC_KEY'),
+        'private_key' => env('WEBPUSH_VAPID_PRIVATE_KEY'),
+        'subject' => env('WEBPUSH_SUBJECT'),
+    ],
+
+    'push' => [
+        'allow_local' => (bool) env('PUSH_ALLOW_LOCAL', false),
+    ],
+
     'backup' => [
         'rclone_remote' => env('RCLONE_BACKUP_REMOTE'),
         // Path lengkap rclone kalau tidak ada di PATH scheduler/cron (mis. dipasang di ~/bin tanpa root di hosting).

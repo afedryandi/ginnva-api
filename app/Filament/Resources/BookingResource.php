@@ -170,7 +170,7 @@ class BookingResource extends Resource
                         ->content('Booking sudah dikonfirmasi, jadi data inti (pelanggan, kendaraan, jenis layanan, produk, tanggal dan jam, toko) tidak bisa diubah di sini. Ganti jadwal lewat tombol Pindah Jadwal. Installer, catatan, dan status tetap bisa diubah.'),
                     Forms\Components\Toggle::make('core_unlocked')
                         ->label('Buka kunci data (akses penuh)')
-                        ->helperText('Hanya untuk koreksi salah input. Alasan wajib dan tercatat di Histori Aktivitas.')
+                        ->helperText('Hanya untuk koreksi salah input. Alasan wajib dan tercatat di Riwayat Aktivitas.')
                         ->visible(fn () => (bool) auth()->user()?->isFullAccess())
                         ->live()
                         ->dehydrated(false),
@@ -2194,7 +2194,7 @@ class BookingResource extends Resource
 
     /**
      * Setelah Eksterior atau Interior dicentang: Interior saja tidak punya cakupan Full Body/Part (dan daftar panelnya), Eksterior saja tidak punya bagian
-     * Interior; lama pengerjaan bawaan menyesuaikan (Eksterior 3 hari, Interior 1 hari, keduanya 4 hari) selama belum diubah manual.
+     * Interior; lama pengerjaan bawaan menyesuaikan (Eksterior 3 hari, Interior saja 1 hari, keduanya tetap 3 hari) selama belum diubah manual.
      */
     public static function onPpfAreaChanged(Forms\Set $set, Forms\Get $get): void
     {

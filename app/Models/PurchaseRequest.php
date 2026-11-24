@@ -44,6 +44,7 @@ class PurchaseRequest extends Model
         'fulfilled_at',
         'stock_recorded_at',
         'journal_entry_id',
+        'purchase_request_group_id',
     ];
 
     protected $casts = [
@@ -76,6 +77,11 @@ class PurchaseRequest extends Model
         $short = round($this->effectiveQuantity() - (float) $this->quantity_received, 2);
 
         return $short > 0 ? $short : null;
+    }
+
+    public function group(): BelongsTo
+    {
+        return $this->belongsTo(PurchaseRequestGroup::class, 'purchase_request_group_id');
     }
 
     public function supplier(): BelongsTo

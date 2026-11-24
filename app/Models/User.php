@@ -688,6 +688,15 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
         return $this->hasAnyRole(['installer', 'installer_leader']);
     }
 
+    /**
+     * Boleh menyetujui dan mencatat pengambilan TAMBAHAN memo (2026-11-24): jabatan di config('memo.addition_roles') (bawaan admin dan
+     * spv finance), atau akses penuh. Jabatan toko biasa (store manager, staf gudang) tidak.
+     */
+    public function canHandleMemoAdditions(): bool
+    {
+        return $this->isFullAccess() || $this->hasAnyRole((array) config('memo.addition_roles', ['admin', 'spv_finance']));
+    }
+
     public function hasMaterialMemoAccess(): bool
     {
         // Eksplisit (bukan akses bawaan): lihat MaterialMemoResource::canViewAny().

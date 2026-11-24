@@ -100,7 +100,7 @@ class InventoryItemResource extends Resource
     {
         // Eager-load scrollCode — dipakai kolom "Kode Gulungan" DAN
         // visibility tombol "Tandai Habis", hindari N+1 per baris.
-        return parent::getEloquentQuery()->with('scrollCode.store');
+        return parent::getEloquentQuery()->with(['scrollCode.store', 'stockBatch:id,batch_number']);
     }
 
     /**
@@ -274,6 +274,18 @@ class InventoryItemResource extends Resource
                         ])->id)
                         ->helperText('Cari kode yang sudah ada, atau buat baru langsung dari sini kalau belum terdaftar.'),
 
+                    // Batch Penerimaan (2026-11-23): nomor batch dibuat otomatis saat barang ditambahkan; pemasok dan faktur opsional.
+                    Forms\Components\Select::make('batch_supplier_id')
+                        ->label('Pemasok (opsional)')
+                        ->options(fn () => \App\Models\Supplier::where('is_active', true)->orderBy('name')->pluck('name', 'id'))
+                        ->searchable()
+                        ->visibleOn('create'),
+
+                    Forms\Components\TextInput::make('batch_invoice_number')
+                        ->label('No. Faktur/Surat Jalan (opsional)')
+                        ->maxLength(80)
+                        ->visibleOn('create'),
+
                     Forms\Components\Textarea::make('notes')
                         ->label('Catatan')
                         ->columnSpanFull(),
@@ -292,6 +304,14 @@ class InventoryItemResource extends Resource
                     ->copyable()
                     ->copyMessage('Kode disalin')
                     ->searchable(),
+
+                Tables\Columns\TextColumn::make('stockBatch.batch_number')
+                    ->label('Batch')
+                    ->placeholder('—')
+                    ->badge()
+                    ->color('gray')
+                    ->searchable()
+                    ->toggleable(),
 
                 Tables\Columns\TextColumn::make('name')
                     ->label('Nama Produk')
@@ -399,6 +419,11 @@ class InventoryItemResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                Tables\Filters\SelectFilter::make('stock_batch_id')
+                    ->label('Batch Penerimaan')
+                    ->relationship('stockBatch', 'batch_number', fn ($query) => $query->where('type', \App\Models\StockBatch::TYPE_PPF_WF)->orderByDesc('id'))
+                    ->searchable(),
+
                 Tables\Filters\SelectFilter::make('status')
                     ->label('Status')
                     ->options([
@@ -478,8 +503,17 @@ class InventoryItemResource extends Resource
                                 'text/csv',
                             ])
                             ->helperText('Pakai format dari tombol Download Template. Baris pertama dilewati. Kode Gulungan opsional. Produk hasil import berstatus Ada Stok.'),
+
+                        // Batch Penerimaan (2026-11-23): satu import = satu batch dengan nomor otomatis; pemasok dan faktur opsional.
+                        Forms\Components\Select::make('supplier_id')
+                            ->label('Pemasok (opsional)')
+                            ->options(fn () => \App\Models\Supplier::where('is_active', true)->orderBy('name')->pluck('name', 'id'))
+                            ->searchable(),
+                        Forms\Components\TextInput::make('invoice_number')
+                            ->label('No. Faktur/Surat Jalan (opsional)')
+                            ->maxLength(80),
                     ])
-                    ->action(fn (array $data) => static::importItems($data['file']))
+                    ->action(fn (array $data) => static::importItems($data['file'], $data))
                     ->modalSubmitActionLabel('Import'),
                 ])
                     ->label('Import')
@@ -564,8 +598,12 @@ class InventoryItemResource extends Resource
                             return;
                         }
 
+                        // Batch Penerimaan: tiap gulungan yang didaftarkan sendiri membuka satu batch (nomor otomatis).
+                        $batch = \App\Models\StockBatch::open(\App\Models\StockBatch::TYPE_PPF_WF, ['created_by' => auth()->id()]);
+
                         try {
                             ScrollCode::create([
+                                'stock_batch_id' => $batch->id,
                                 'code' => $code,
                                 'film_product_id' => $data['film_product_id'],
                                 'max_usage' => $data['max_usage'] ?? null,
@@ -576,6 +614,8 @@ class InventoryItemResource extends Resource
 
                             Notification::make()->title('Kode gulungan ditambahkan')->success()->send();
                         } catch (\Illuminate\Database\QueryException $e) {
+                            $batch->delete();
+
                             Notification::make()
                                 ->title('Kode gulungan sudah terdaftar')
                                 ->body("Kode \"{$code}\" baru saja ditambahkan oleh proses lain.")
@@ -920,7 +960,7 @@ class InventoryItemResource extends Resource
      * seperti pola di ScrollCodeResource). Baris tidak valid/bentrok
      * DILEWATI diam-diam, ringkasannya dilaporkan lewat notifikasi.
      */
-    private static function importItems(string $uploadedPath): void
+    private static function importItems(string $uploadedPath, array $meta = []): void
     {
         $fullPath = Storage::disk('local')->path($uploadedPath);
 
@@ -944,6 +984,7 @@ class InventoryItemResource extends Resource
         array_shift($rows); // baris pertama = header
 
         $createdCount = 0;
+        $importBatchId = null;
         $problems = [];          // "Baris N: ..." untuk baris yang dilewati
         $unknownModels = [];
         $scrollCodeConflicts = 0;
@@ -953,7 +994,15 @@ class InventoryItemResource extends Resource
 
         // Satu transaksi untuk seluruh file: galat di tengah tidak meninggalkan sebagian barang (audit Produk PPF/WF, 2026-11-02).
         try {
-            DB::transaction(function () use ($rows, &$createdCount, &$problems, &$unknownModels, &$scrollCodeConflicts, &$scrollCodeUnavailable, &$productCache, &$seenScrollCodesInFile) {
+            DB::transaction(function () use ($rows, $meta, &$createdCount, &$problems, &$unknownModels, &$scrollCodeConflicts, &$scrollCodeUnavailable, &$productCache, &$seenScrollCodesInFile, &$importBatchId) {
+                // Satu import = satu Batch Penerimaan. Seluruh import satu transaksi, jadi batch ikut tergulung bila import dibatalkan.
+                $importBatchId = \App\Models\StockBatch::open(\App\Models\StockBatch::TYPE_PPF_WF, [
+                    'supplier_id' => isset($meta['supplier_id']) && $meta['supplier_id'] !== '' ? (int) $meta['supplier_id'] : null,
+                    'invoice_number' => $meta['invoice_number'] ?? null,
+                    'notes' => 'Import Excel',
+                    'created_by' => auth()->id(),
+                ])->id;
+
                 foreach ($rows as $index => $row) {
                     $line = $index + 2; // nomor baris di spreadsheet (header = baris 1)
                     $name = isset($row[0]) ? trim((string) $row[0]) : '';
@@ -1022,6 +1071,7 @@ class InventoryItemResource extends Resource
                                     $defaultLength = $product->product_type === 'ppf' ? 15 : 30;
 
                                     $scrollCodeId = ScrollCode::create([
+                                        'stock_batch_id' => $importBatchId,
                                         'code' => $scrollCodeValue,
                                         'film_product_id' => $product->id,
                                         'total_length_meters' => $defaultLength,
@@ -1043,6 +1093,7 @@ class InventoryItemResource extends Resource
                         'category' => $category,
                         'received_date' => $receivedDate,
                         'scroll_code_id' => $scrollCodeId,
+                        'stock_batch_id' => $importBatchId,
                         'status' => 'out',
                         'notes' => $notes ?: null,
                         'created_by' => auth()->id(),
@@ -1062,6 +1113,11 @@ class InventoryItemResource extends Resource
                 ->send();
 
             return;
+        }
+
+        // Import yang tidak membuat satu barang pun tidak meninggalkan batch kosong.
+        if ($importBatchId && ! \App\Models\InventoryItem::where('stock_batch_id', $importBatchId)->exists()) {
+            \App\Models\StockBatch::whereKey($importBatchId)->delete();
         }
 
         $unknownSummary = collect($unknownModels)
@@ -1142,9 +1198,9 @@ class InventoryItemResource extends Resource
      * GET /api/staff/inventory/{code} pakai isi QR-nya, tidak perlu buka
      * browser sama sekali (QR ini tidak dimaksudkan untuk publik/customer).
      */
-    private static function downloadQrPdf(Collection $items)
+    private static function downloadQrPdf(Collection $items)  // lembar sticker A4, sticker 25 mm (2026-11-23)
     {
-        $items->loadMissing('scrollCode');
+        $items->loadMissing(['scrollCode.stockBatch', 'stockBatch']);
 
         $rows = SupportCollection::make($items)->map(function (InventoryItem $item) {
             return [
@@ -1152,11 +1208,13 @@ class InventoryItemResource extends Resource
                 'meta' => $item->category,
                 'code' => $item->code,
                 'scroll_code' => $item->scrollCode?->code,
+                // Batch Penerimaan barang ini; barang lama tanpa batch memakai batch gulungannya bila ada.
+                'batch' => $item->stockBatch?->batch_number ?? $item->scrollCode?->stockBatch?->batch_number,
                 'qr'   => QrCodeService::generateDataUri($item->code, 260),
             ];
         });
 
-        $pdf = Pdf::loadView('pdf.inventory_qr_batch', ['items' => $rows])->setPaper('a4', 'portrait');
+        $pdf = Pdf::loadView('pdf.inventory_qr_sticker', ['items' => $rows])->setPaper('a4', 'portrait');
 
         $filename = $items->count() === 1
             ? "QR-Inventaris-{$items->first()->code}.pdf"

@@ -742,9 +742,14 @@ class StaffStockApiTest extends TestCase
         $rawRow = $memo->items()->where('item_type', 'raw_material')->firstOrFail();
         $rollRow = $memo->items()->where('item_type', 'inventory_item')->firstOrFail();
 
-        $this->api($staff)->patchJson("/api/staff/memos/{$memo->id}/items/{$rawRow->id}", ['qty_taken' => 5])->assertSuccessful();
+        // Koreksi jumlah hanya oleh akses penuh (2026-11-23): staf memo biasa ditolak.
+        $this->api($staff)->patchJson("/api/staff/memos/{$memo->id}/items/{$rawRow->id}", ['qty_taken' => 5])->assertForbidden();
+        $this->assertEquals(6, (float) $material->fresh()->current_stock);
+
+        $fullAccess = $this->staff('super_admin');
+        $this->api($fullAccess)->patchJson("/api/staff/memos/{$memo->id}/items/{$rawRow->id}", ['qty_taken' => 5])->assertSuccessful();
         $this->assertEquals(5, (float) $material->fresh()->current_stock);
-        $this->api($staff)->patchJson("/api/staff/memos/{$memo->id}/items/{$rollRow->id}", ['meters_used' => 2])->assertSuccessful();
+        $this->api($fullAccess)->patchJson("/api/staff/memos/{$memo->id}/items/{$rollRow->id}", ['meters_used' => 2])->assertSuccessful();
         $this->assertEquals(13, (float) $scroll->fresh()->remaining_length_meters);
 
         $this->api($staff)->postJson("/api/staff/memos/{$memo->id}/items/{$rawRow->id}/return", ['qty_returned' => 2])->assertSuccessful();
@@ -809,7 +814,8 @@ class StaffStockApiTest extends TestCase
         $this->assertEquals(3, (float) $material->fresh()->current_stock);
 
         $this->api($staff)->postJson("/api/staff/memos/{$memo->id}/items/999999/return", ['qty_returned' => 1])->assertNotFound();
-        $this->api($staff)->patchJson("/api/staff/memos/{$memo->id}/items/999999", ['qty_taken' => 1])->assertNotFound();
+        $this->api($staff)->patchJson("/api/staff/memos/{$memo->id}/items/999999", ['qty_taken' => 1])->assertForbidden();
+        $this->api($this->staff('super_admin'))->patchJson("/api/staff/memos/{$memo->id}/items/999999", ['qty_taken' => 1])->assertNotFound();
         $this->api($staff)->deleteJson("/api/staff/memos/{$memo->id}/items/999999")->assertNotFound();
     }
 

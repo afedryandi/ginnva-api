@@ -28,6 +28,8 @@ class RawMaterialMovement extends Model
         'note',
         'source_type',
         'source_id',
+        // Stok keluar: [{batch_id, qty}] batch yang terpakai (FIFO), dipakai pengembalian memo untuk memulihkan batch asal.
+        'batch_allocations',
         'user_id',
         'reversed_at',
         'reversed_by',
@@ -37,6 +39,7 @@ class RawMaterialMovement extends Model
     protected $casts = [
         'quantity' => 'decimal:2',
         'unit_cost' => 'decimal:2',
+        'batch_allocations' => 'array',
         'reversed_at' => 'datetime',
     ];
 

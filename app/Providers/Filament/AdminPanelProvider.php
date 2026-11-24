@@ -227,7 +227,17 @@ class AdminPanelProvider extends PanelProvider
                     ->label('Panduan')
                     ->icon('heroicon-o-question-mark-circle')
                     ->url(fn (): string => \App\Filament\Pages\Panduan::getUrl()),
+                // Memasang panel ke Layar Utama dan mengaktifkan notifikasi di perangkat ini (PWA, 2026-11-24).
+                \Filament\Navigation\MenuItem::make()
+                    ->label('Notifikasi di HP')
+                    ->icon('heroicon-o-bell-alert')
+                    ->url(fn (): string => \App\Filament\Pages\NotifikasiHp::getUrl()),
             ])
+            // PWA: manifest, ikon, dan service worker di semua halaman panel (juga halaman login, supaya bisa dipasang dari sana).
+            ->renderHook(
+                \Filament\View\PanelsRenderHook::HEAD_END,
+                fn (): string => view('filament.partials.pwa-head')->render()
+            )
             // Spacing antar-grup sidebar (diminta 2026-09-09) — jarak
             // vertikal bawaan Filament v3 antar heading grup ("Laporan
             // Penjualan", "Laporan Jasa", dst) dirasa terlalu jauh.

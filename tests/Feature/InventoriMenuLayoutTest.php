@@ -5,9 +5,6 @@ namespace Tests\Feature;
 use App\Filament\Clusters\BookingCluster;
 use App\Filament\Clusters\InventarisCluster;
 use App\Filament\Clusters\KaryawanCluster;
-use App\Filament\Clusters\PelangganCluster;
-use App\Filament\Clusters\ProdukCluster;
-use App\Filament\Clusters\PromosiCluster;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -53,10 +50,16 @@ class InventoriMenuLayoutTest extends TestCase
         $this->assertNotEmpty(\App\Filament\Resources\MasterResepResource::getUrl('index'));
     }
 
-    public function test_the_other_clusters_stay_under_the_penjualan_group(): void
+    public function test_the_remaining_clusters_exist_and_inventori_is_not_under_penjualan(): void
     {
-        foreach ([ProdukCluster::class, PelangganCluster::class, PromosiCluster::class, \App\Filament\Clusters\PenjualanCluster::class, \App\Filament\Clusters\AnalisaLaporanCluster::class] as $cluster) {
-            $this->assertSame('Penjualan', $cluster::getNavigationGroup(), $cluster);
+        // Cluster Produk, Pelanggan, Promosi, dan Analisa Laporan sudah tidak ada: modul Penjualan diganti satu cluster "Laporan"
+        // (PenjualanCluster, tanpa grup induk). Yang dijaga di sini: cluster itu tidak lagi bergantung pada grup "Penjualan" dan
+        // Inventori tetap tidak berada di bawahnya.
+        foreach (['ProdukCluster', 'PelangganCluster', 'PromosiCluster', 'AnalisaLaporanCluster'] as $gone) {
+            $this->assertFalse(class_exists('App\\Filament\\Clusters\\' . $gone), "{$gone} sudah dihapus, tes ini tidak perlu mengacunya lagi.");
         }
+
+        $this->assertNull(\App\Filament\Clusters\PenjualanCluster::getNavigationGroup());
+        $this->assertNotSame('Penjualan', InventarisCluster::getNavigationGroup());
     }
 }

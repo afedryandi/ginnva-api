@@ -25,6 +25,7 @@ class ScrollCode extends Model
         'allocated_at',
         'used_at',
         'warranty_code',
+        'stock_batch_id',
     ];
 
     protected $casts = [
@@ -43,6 +44,11 @@ class ScrollCode extends Model
      * drift dari 2 sumber (purchase_cost & total_length_meters) yang
      * masing-masing bisa diedit terpisah lewat "Edit Panjang & Harga".
      */
+    public function stockBatch(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(StockBatch::class);
+    }
+
     public function costPerMeter(): ?float
     {
         if ($this->purchase_cost === null || $this->total_length_meters === null || (float) $this->total_length_meters <= 0) {

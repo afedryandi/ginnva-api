@@ -96,8 +96,8 @@ class LeaveTypesAndProfileTest extends TestCase
         $this->assertTrue($codes->contains('Cuti Menikah'));
         $this->assertFalse($codes->contains('Cuti Ibadah Keagamaan'));
         $sakit = collect($response->json('leave_types'))->firstWhere('name', 'Sakit');
-        $this->assertSame(2, $sakit['document_required_from_days']);
-        $this->assertStringContainsString('melampirkan dokumen', $sakit['rule_summary']);
+        $this->assertSame(1, $sakit['document_required_from_days'], 'Sakit wajib lampiran sejak hari pertama (2026-11-23).');
+        $this->assertStringContainsString('Wajib melampirkan surat keterangan sakit dari dokter.', $sakit['rule_summary']);
     }
 
     public function test_special_leave_does_not_use_up_the_annual_quota(): void
@@ -129,28 +129,31 @@ class LeaveTypesAndProfileTest extends TestCase
         ])->assertStatus(201);
     }
 
-    public function test_sick_leave_requires_a_document_from_the_configured_day_count(): void
+    public function test_sick_leave_requires_a_document_from_the_first_day_and_the_threshold_is_configurable(): void
     {
         $sakit = $this->typeId('sakit');
 
-        $this->request(['leave_type_id' => $sakit, 'start_date' => '2026-10-12', 'end_date' => '2026-10-12'])->assertStatus(201);
+        // Kebijakan 2026-11-23: surat keterangan sakit dari dokter wajib sejak hari pertama.
+        $this->request(['leave_type_id' => $sakit, 'start_date' => '2026-10-12', 'end_date' => '2026-10-12'])
+            ->assertStatus(422)->assertJsonPath('message', fn ($m) => str_contains($m, 'Sakit untuk 1 hari wajib melampirkan'));
 
         $this->request(['leave_type_id' => $sakit, 'start_date' => '2026-10-14', 'end_date' => '2026-10-15'])
             ->assertStatus(422)->assertJsonPath('message', fn ($m) => str_contains($m, 'Sakit untuk 2 hari wajib melampirkan'));
 
         $this->request([
-            'leave_type_id' => $sakit, 'start_date' => '2026-10-14', 'end_date' => '2026-10-15',
+            'leave_type_id' => $sakit, 'start_date' => '2026-10-12', 'end_date' => '2026-10-12',
             'document' => UploadedFile::fake()->create('surat.pdf', 100, 'application/pdf'),
         ])->assertStatus(201);
 
-        // Staf mengubah aturan: surat dokter wajib dari hari pertama.
-        LeaveType::where('code', 'sakit')->update(['document_required_from_days' => 1]);
-        $this->request(['leave_type_id' => $sakit, 'start_date' => '2026-10-20', 'end_date' => '2026-10-20'])->assertStatus(422);
+        // Staf bisa mengubah angkanya lewat menu Jenis Izin & Cuti: wajib mulai 2 hari.
+        LeaveType::where('code', 'sakit')->update(['document_required_from_days' => 2]);
+        $this->request(['leave_type_id' => $sakit, 'start_date' => '2026-10-20', 'end_date' => '2026-10-20'])->assertStatus(201);
+        $this->request(['leave_type_id' => $sakit, 'start_date' => '2026-10-22', 'end_date' => '2026-10-23'])->assertStatus(422);
     }
 
     public function test_legacy_clients_sending_only_the_category_still_work_and_get_a_type(): void
     {
-        $response = $this->request(['type' => 'sakit', 'start_date' => '2026-10-12', 'end_date' => '2026-10-12'])->assertStatus(201);
+        $response = $this->request(['type' => 'sakit', 'start_date' => '2026-10-12', 'end_date' => '2026-10-12', 'document' => UploadedFile::fake()->create('surat.pdf', 100, 'application/pdf')])->assertStatus(201);
 
         $this->assertSame('sakit', $response->json('leave_request.type'));
         $this->assertSame('Sakit', $response->json('leave_request.leave_type_name'));

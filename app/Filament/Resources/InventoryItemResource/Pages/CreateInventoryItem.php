@@ -25,6 +25,21 @@ class CreateInventoryItem extends CreateRecord
             $this->halt();
         }
 
+        // Setiap barang yang ditambahkan lewat form membuka satu Batch Penerimaan (nomor otomatis). Gulungan yang baru dibuat dari
+        // form ini (belum punya batch) ikut batch yang sama.
+        $batch = \App\Models\StockBatch::open(\App\Models\StockBatch::TYPE_PPF_WF, [
+            'received_date' => $data['received_date'] ?? null,
+            'supplier_id' => ! empty($data['batch_supplier_id']) ? (int) $data['batch_supplier_id'] : null,
+            'invoice_number' => $data['batch_invoice_number'] ?? null,
+            'created_by' => auth()->id(),
+        ]);
+        unset($data['batch_supplier_id'], $data['batch_invoice_number']);
+
+        if (! empty($data['scroll_code_id'])) {
+            \App\Models\ScrollCode::whereKey($data['scroll_code_id'])->whereNull('stock_batch_id')->update(['stock_batch_id' => $batch->id]);
+        }
+
+        $data['stock_batch_id'] = $batch->id;
         $data['code'] = InventoryItem::generateCode();
         $data['status'] = 'in_stock';
         $data['created_by'] = auth()->id();

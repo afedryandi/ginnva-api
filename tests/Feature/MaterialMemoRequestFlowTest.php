@@ -233,13 +233,144 @@ class MaterialMemoRequestFlowTest extends TestCase
 
         $this->service->resubmit($memo, $this->installer, 'Cairan kurang');
         $this->assertSame('pending', $memo->fresh()->request_status);
-        $this->service->approve($memo, $this->manager);
-        $this->service->addItem($memo, $this->warehouse, 'raw_material', $this->material->id, 1.5, null);
-        $this->service->complete($memo, $this->warehouse);
+        $this->assertSame(1, (int) $memo->fresh()->addition_round);
+        // Pengambilan tambahan (2026-11-24): disetujui dan dicatat admin atau spv finance, bukan store manager dan staf gudang.
+        $admin = $this->additionUser('admin');
+        $this->service->approve($memo, $admin);
+        $this->service->addItem($memo, $admin, 'raw_material', $this->material->id, 1.5, null);
+        $this->service->complete($memo, $admin);
 
         $this->assertEquals(6.5, (float) $this->material->fresh()->current_stock);
         $this->assertTrue($memo->fresh()->isHandoverLocked());
         $this->assertCount(2, $memo->items);
+    }
+
+    private function additionUser(string $role): User
+    {
+        Role::findOrCreate($role, 'web');
+
+        return $this->user($role, null, ['RawMaterialResource', 'InventoryItemResource'], ['RawMaterialResource' => ['update', 'view'], 'InventoryItemResource' => ['update', 'view']]);
+    }
+
+    /** Memo yang pengambilan pertamanya sudah selesai (terkunci), siap meminta tambahan. */
+    private function closedFirstRound(): MaterialMemo
+    {
+        $memo = $this->approved();
+        $this->service->addItem($memo, $this->warehouse, 'raw_material', $this->material->id, 2, null);
+        $this->service->complete($memo, $this->warehouse);
+
+        return $memo->fresh();
+    }
+
+    public function test_the_first_round_stays_with_the_store_manager_and_the_warehouse_and_closes_when_done(): void
+    {
+        $memo = $this->closedFirstRound();
+
+        $this->assertSame(0, (int) $memo->addition_round);
+        $this->assertTrue($memo->isHandoverLocked());
+        $this->assertSame($this->manager->id, (int) $memo->approved_by);
+        $this->assertSame($this->warehouse->id, (int) $memo->fulfilled_by);
+    }
+
+    public function test_an_additional_withdrawal_is_decided_and_recorded_only_by_admin_or_spv_finance(): void
+    {
+        $memo = $this->closedFirstRound();
+        $this->service->resubmit($memo, $this->installer, 'Cairan kurang');
+        $memo = $memo->fresh();
+        $admin = $this->additionUser('admin');
+        $spv = $this->additionUser('spv_finance');
+
+        $this->assertTrue($memo->isAdditionRound());
+
+        // Yang tidak boleh memutuskan: store manager (bahkan toko yang sama), staf gudang, pengaju.
+        foreach ([$this->manager, $this->warehouse, $this->installer] as $outsider) {
+            $this->assertFalse($this->service->canApprove($outsider, $memo), 'Bukan penyetuju tambahan.');
+            try {
+                $this->service->approve($memo, $outsider);
+                $this->fail('Seharusnya ditolak.');
+            } catch (InvalidArgumentException $e) {
+                $this->assertStringContainsString('admin atau spv finance', $e->getMessage());
+            }
+        }
+
+        $this->assertTrue($this->service->canApprove($admin, $memo));
+        $this->assertTrue($this->service->canApprove($spv, $memo));
+        $this->assertTrue($this->service->canApprove($this->director, $memo), 'Akses penuh tetap boleh.');
+
+        $this->service->approve($memo, $spv);
+        $memo = $memo->fresh();
+        $this->assertSame($spv->id, (int) $memo->approved_by);
+
+        // Pencatat: admin atau spv finance; staf gudang tidak lagi.
+        $this->assertFalse($this->service->canHandOver($this->warehouse, $memo));
+        try {
+            $this->service->addItem($memo, $this->warehouse, 'raw_material', $this->material->id, 1, null);
+            $this->fail('Staf gudang tidak boleh mencatat pengambilan tambahan.');
+        } catch (InvalidArgumentException $e) {
+            $this->assertStringContainsString('bukan staff gudang', $e->getMessage());
+        }
+
+        $this->service->addItem($memo, $admin, 'raw_material', $this->material->id, 1, null);
+        $this->service->complete($memo, $admin);
+
+        $this->assertEquals(7.0, (float) $this->material->fresh()->current_stock);
+        $this->assertTrue($memo->fresh()->isHandoverLocked(), 'Setelah semuanya dicatat, memo ditutup lagi.');
+        $this->assertSame($admin->id, (int) $memo->fresh()->fulfilled_by);
+    }
+
+    public function test_a_rejected_addition_stays_an_addition_and_a_second_addition_counts_again(): void
+    {
+        $memo = $this->closedFirstRound();
+        $admin = $this->additionUser('admin');
+
+        $this->service->resubmit($memo, $this->installer, 'Tambah satu');
+        $this->service->reject($memo, $admin, 'Belum perlu');
+        $this->assertSame(1, (int) $memo->fresh()->addition_round);
+
+        $this->service->resubmit($memo, $this->installer, 'Tetap perlu, kurang');
+        $this->assertSame(1, (int) $memo->fresh()->addition_round, 'Diajukan ulang setelah ditolak bukan putaran baru.');
+
+        $this->service->approve($memo, $admin);
+        $this->service->addItem($memo, $admin, 'raw_material', $this->material->id, 1, null);
+        $this->service->complete($memo, $admin);
+
+        $this->service->resubmit($memo, $this->installer, 'Tambahan lagi');
+        $this->assertSame(2, (int) $memo->fresh()->addition_round);
+        $this->assertTrue($this->service->canApprove($admin, $memo->fresh()));
+        $this->assertFalse($this->service->canApprove($this->manager, $memo->fresh()));
+    }
+
+    public function test_the_approvers_and_recorders_of_an_addition_are_notified_not_the_store_manager(): void
+    {
+        $memo = $this->closedFirstRound();
+        $admin = $this->additionUser('admin');
+        $spv = $this->additionUser('spv_finance');
+        $this->manager->notifications()->delete();
+        $this->warehouse->notifications()->delete();   // notifikasi putaran pertama tidak ikut dihitung
+
+        $this->service->resubmit($memo, $this->installer, 'Cairan kurang');
+
+        $titles = fn (User $u) => $u->notifications()->get()->pluck('data.title')->all();
+        $this->assertContains('Memo Barang Menunggu Persetujuan', $titles($admin));
+        $this->assertContains('Memo Barang Menunggu Persetujuan', $titles($spv));
+        $this->assertNotContains('Memo Barang Menunggu Persetujuan', $titles($this->manager), 'Store manager tidak lagi memutuskan tambahan.');
+
+        $this->service->approve($memo->fresh(), $admin);
+        $this->assertContains('Memo Barang Siap Diserahkan', $titles($spv), 'Pencatat tambahan (admin dan spv finance) diberi tahu.');
+        $this->assertNotContains('Memo Barang Siap Diserahkan', $titles($this->warehouse));
+    }
+
+    public function test_the_addition_roles_can_be_changed_in_config(): void
+    {
+        $memo = $this->closedFirstRound();
+        $this->service->resubmit($memo, $this->installer, 'Cairan kurang');
+        $office = $this->additionUser('kantor');
+
+        $this->assertFalse($this->service->canApprove($office, $memo->fresh()));
+
+        config(['memo.addition_roles' => ['kantor']]);
+        $this->assertTrue($this->service->canApprove($office, $memo->fresh()));
+        $this->assertFalse($this->service->canApprove($this->additionUser('spv_finance'), $memo->fresh()));
     }
 
     public function test_a_roll_is_handed_over_without_meters_and_the_meters_are_filled_in_after_the_job(): void

@@ -123,7 +123,7 @@ class LightServiceCapacityTest extends TestCase
         $this->makeBooking(['service_type' => 'PPF', 'product_detailing' => false, 'product_ppf' => true, 'preferred_time' => null]);
 
         $this->book(['ppf'])->assertStatus(422)->assertJsonPath('errors.preferred_date.0', 'Tanggal penuh.');
-        $this->book(['ppf', 'detailing'])->assertStatus(422); // campuran = berat
+        $this->book(['kaca_film', 'detailing'])->assertStatus(422); // campuran = berat
     }
 
     // ------------------------------------------------------------- slot jam ringan
@@ -152,7 +152,7 @@ class LightServiceCapacityTest extends TestCase
 
     public function test_mixed_bookings_do_not_need_a_slot_and_use_the_heavy_rules(): void
     {
-        $this->book(['ppf', 'detailing'])->assertStatus(201);
+        $this->book(['kaca_film', 'detailing'])->assertStatus(201);
     }
 
     public function test_light_full_dates_lists_a_date_only_when_every_slot_is_full(): void

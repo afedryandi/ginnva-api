@@ -40,6 +40,41 @@ class AttendanceCorrectionService
     }
 
     /**
+     * Pengajuan koreksi oleh karyawan untuk dirinya sendiri (lupa absen, isi jam manual): dipakai aplikasi staf dan halaman Absen Saya di panel
+     * (2026-11-22), supaya aturannya satu. Hanya jenis 'manual'; Dinas Luar, Alpha, dan Izin tetap lewat jalurnya sendiri.
+     *
+     * @param string|null $clockIn  jam "HH:MM" di tanggal koreksi, atau null
+     * @param string|null $clockOut jam "HH:MM" di tanggal koreksi, atau null
+     *
+     * @throws RuntimeException
+     */
+    public function submitForStaff(User $user, string $date, ?string $clockIn, ?string $clockOut, string $reason): AttendanceCorrectionRequest
+    {
+        if (! $user->store_id) {
+            throw new RuntimeException('Akun ini belum terhubung ke toko mana pun, tidak bisa mengajukan koreksi.');
+        }
+
+        $day = Carbon::parse($date)->startOfDay();
+
+        if ($day->isFuture()) {
+            throw new RuntimeException('Tanggal koreksi tidak boleh di masa depan.');
+        }
+
+        $existing = \App\Models\Attendance::where('user_id', $user->id)->where('date', $day->toDateString())->first();
+
+        return $this->submit([
+            'attendance_id' => $existing?->id,
+            'user_id' => $user->id,
+            'store_id' => $user->store_id,
+            'date' => $day->toDateString(),
+            'entry_type' => 'manual',
+            'clock_in_at' => filled($clockIn) ? $day->copy()->setTimeFromTimeString($clockIn) : null,
+            'clock_out_at' => filled($clockOut) ? $day->copy()->setTimeFromTimeString($clockOut) : null,
+            'reason' => $reason,
+        ], $user->id);
+    }
+
+    /**
      * Aturan pengajuan: minimal satu jam, jam keluar setelah jam masuk, jam jatuh di tanggal absensi, dan satu pengajuan menunggu per
      * karyawan per tanggal (supaya penyetuju tidak menghadapi dua pengajuan yang saling menimpa).
      */
@@ -235,6 +270,7 @@ class AttendanceCorrectionService
             : "Pengajuan koreksi absensi tanggal {$request->date->format('d M Y')} ditolak."
                 . ($request->review_notes ? " Alasan: {$request->review_notes}" : '');
 
-        app(\App\Services\PushNotificationService::class)->sendToUsers([$request->requested_by], $title, $body);
+        // Lewat StaffNotifier supaya staf yang hanya memakai panel (tanpa aplikasi) tetap menerima kabar di lonceng.
+        app(\App\Services\StaffNotifier::class)->toUsers([$request->requested_by], $title, $body, color: $approved ? 'success' : 'danger');
     }
 }

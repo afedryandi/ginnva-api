@@ -583,7 +583,7 @@ Route::prefix('staff')->group(function () {
         // Memo barang berpersetujuan (2026-11-17): kotak masuk penyetuju/gudang dan langkah-langkah alurnya. Sebelum /memos/{id}.
         Route::get('/memos/inbox', [\App\Http\Controllers\Api\Staff\MaterialMemoRequestController::class, 'inbox']);
         Route::get('/memos/{id}/request', [\App\Http\Controllers\Api\Staff\MaterialMemoRequestController::class, 'showRequest']);
-        foreach (['resubmit', 'approve', 'reject', 'complete'] as $step) {
+        foreach (['resubmit', 'approve', 'reject', 'complete', 'close'] as $step) {
             Route::post("/memos/{id}/{$step}", [\App\Http\Controllers\Api\Staff\MaterialMemoRequestController::class, $step])->middleware('throttle:30,1');
         }
         // Gudang mencatat barang yang diserahkan; gulungan dicatat tanpa meter, meternya diisi belakangan.

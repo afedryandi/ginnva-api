@@ -243,7 +243,7 @@ class MaterialMemoResourceTest extends TestCase
         $fresh = $item->fresh();
         $this->assertSame([4.0, 1.0], [(float) $fresh->qty_returned, (float) $fresh->qty_used]);
         $this->assertEquals(9, (float) $material->fresh()->current_stock);
-        $this->assertEquals(2, (float) $material->batches()->whereDate('expiry_date', '2027-03-01')->sum('quantity'), 'Tambahan kembali menjadi batch baru dengan kedaluwarsanya.');
+        $this->assertSame(0, $material->batches()->whereDate('expiry_date', '2027-03-01')->count(), 'Tambahan kembali masuk ke batch asal, bukan batch baru.');
 
         $service::correctReturn($item->fresh(), 1, $admin->id, $memo, 'Ternyata hanya 1');
         $this->assertEquals(6, (float) $material->fresh()->current_stock);
@@ -284,6 +284,9 @@ class MaterialMemoResourceTest extends TestCase
         $returned = $returned->fresh();
 
         $this->as($this->writer($this->storeA));
+        $this->manager($memo)->assertTableActionHidden('correct_return', $returned);
+
+        $this->as($admin);
         $this->manager($memo)
             ->assertTableActionVisible('correct_return', $returned)
             ->assertTableActionHidden('correct_return', $open)
@@ -294,8 +297,12 @@ class MaterialMemoResourceTest extends TestCase
         $this->as($this->user('kasir', ['MaterialMemoResource'], $this->storeA));
         $this->manager($memo)->assertTableActionHidden('correct_return', $returned);
 
-        $writer = $this->writer($this->storeA);
+        $writer = $admin;
         $url = "/api/staff/memos/{$memo->id}/items/{$returned->id}/correct-return";
+        $staffWriter = $this->writer($this->storeA);
+        $this->actingAs($staffWriter, 'api')->postJson($url, ['qty_returned' => 1, 'note' => 'coba'])->assertStatus(403)
+            ->assertJsonPath('message', 'Koreksi jumlah dan pengembalian memo hanya bisa dilakukan oleh akses penuh. Minta admin untuk mengoreksinya.');
+        $this->actingAs($staffWriter, 'api')->patchJson("/api/staff/memos/{$memo->id}/items/{$returned->id}", ['qty_taken' => 9])->assertStatus(403);
         $this->actingAs($writer, 'api')->postJson($url, ['qty_returned' => 2])->assertStatus(422)->assertJsonValidationErrors('note');
         $this->actingAs($writer, 'api')->postJson($url, ['qty_returned' => 2, 'note' => 'Hitung ulang'])->assertSuccessful()->assertJsonPath('message', 'Pengembalian dikoreksi.');
         $this->assertEquals(2.0, (float) $returned->fresh()->qty_returned);
@@ -594,6 +601,8 @@ class MaterialMemoResourceTest extends TestCase
         $this->as($this->writer($this->storeA));
         $row = \App\Services\MaterialMemoStockService::addInventory($item, $memo, 2, auth()->id(), null);
 
+        $this->manager($memo)->assertTableActionHidden('return_item', $row)->assertTableActionHidden('edit_qty', $row);
+        $this->as($this->user('super_admin'));
         $this->manager($memo)->assertTableActionHidden('return_item', $row)->assertTableActionVisible('edit_qty', $row);
     }
 
@@ -605,6 +614,10 @@ class MaterialMemoResourceTest extends TestCase
         $material = $this->material('Adhesive', 10);
         $this->as($this->writer($this->storeA));
         $row = \App\Services\MaterialMemoStockService::addMaterial($material, 'raw_material', $memo, 4, auth()->id(), null);
+
+        // Koreksi hanya oleh akses penuh (2026-11-23): staf memo biasa tidak mendapat tombolnya.
+        $this->manager($memo)->assertTableActionHidden('edit_qty', $row);
+        $this->as($this->user('super_admin'));
 
         $this->manager($memo)->callTableAction('edit_qty', $row, data: ['qty' => 6])->assertHasNoTableActionErrors();
         $this->assertEquals(4, (float) $material->fresh()->current_stock);
@@ -627,6 +640,7 @@ class MaterialMemoResourceTest extends TestCase
         $item = $this->roll('SC-MEMO-3', 15);
         $this->as($this->writer($this->storeA));
         $row = \App\Services\MaterialMemoStockService::addInventory($item, $memo, 5, auth()->id(), null);
+        $this->as($this->user('super_admin'));
 
         $this->manager($memo)->callTableAction('edit_qty', $row, data: ['qty' => 8])->assertHasNoTableActionErrors();
         $this->assertEquals(7, (float) ScrollCode::find($item->scroll_code_id)->remaining_length_meters);

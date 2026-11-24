@@ -145,7 +145,7 @@ class BookingPpfFullBodyTest extends TestCase
 
         $this->assertSame(Booking::PPF_AREA_BOTH, $booking->ppf_area, 'ppf_area diturunkan dari dua penanda.');
         $this->assertSame('Eksterior & Interior', $booking->ppfAreaLabel());
-        $this->assertSame(4, (int) $booking->duration_days, 'Eksterior 3 hari + Interior 1 hari.');
+        $this->assertSame(3, (int) $booking->duration_days, 'Interior tidak menambah hari kerja: Eksterior dan Interior sekaligus tetap 3 hari.');
         $this->assertSame(Booking::PPF_SCOPE_FULL_BODY, $booking->ppf_scope, 'Cakupan tetap berlaku untuk bagian Eksterior.');
         $this->assertTrue($booking->includesPpfBonus(), 'Bonus untuk Full Body di bagian Eksterior.');
     }
@@ -189,7 +189,7 @@ class BookingPpfFullBodyTest extends TestCase
         $this->assertSame(1, Booking::defaultDurationDays(false, false, false));
         $this->assertSame(3, Booking::defaultDurationDays(true, true, false));
         $this->assertSame(1, Booking::defaultDurationDays(true, false, true));
-        $this->assertSame(4, Booking::defaultDurationDays(true, true, true));
+        $this->assertSame(3, Booking::defaultDurationDays(true, true, true), 'Interior tidak menambah hari kerja.');
         $this->assertSame(3, Booking::defaultDurationDays(true, false, false));
     }
 

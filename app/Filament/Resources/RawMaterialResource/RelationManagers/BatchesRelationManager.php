@@ -26,13 +26,20 @@ class BatchesRelationManager extends RelationManager
     {
         return $table
             ->recordTitleAttribute('id')
-            ->modifyQueryUsing(fn ($query) => $query->where('quantity', '>', 0))
+            ->modifyQueryUsing(fn ($query) => $query->where('quantity', '>', 0)->with('stockBatch.supplier:id,name'))
             ->columns([
                 Tables\Columns\TextColumn::make('received_date')
                     ->label('Tanggal Masuk')
                     ->date('d M Y')
                     ->sortable()
                     ->description(fn ($record) => $record->is_adjustment ? 'Dari penyesuaian stok (opname)' : null),
+
+                Tables\Columns\TextColumn::make('stockBatch.batch_number')
+                    ->label('Batch')
+                    ->placeholder('—')
+                    ->badge()
+                    ->color('gray')
+                    ->description(fn ($record) => $record->stockBatch?->supplier?->name ?: null),
 
                 Tables\Columns\TextColumn::make('quantity')
                     ->label('Sisa Kuantitas')

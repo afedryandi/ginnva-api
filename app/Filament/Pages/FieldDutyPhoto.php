@@ -39,7 +39,8 @@ class FieldDutyPhoto extends Page
 
         return $user !== null
             && $user->canAccessStaffArea()
-            && $user->hasMenuAccess(FieldDutyRequestResource::class);
+            // Cukup hak "Absen Saya" (karyawan tanpa aplikasi tidak dicentang di menu Dinas Luar); menu Dinas Luar tetap boleh.
+            && ($user->hasMenuAccess(FieldDutyRequestResource::class) || MyAttendance::canAccess());
     }
 
     /** Dinas luar milik sendiri yang disetujui, hari ini, dan masih butuh foto awal atau foto akhir. */

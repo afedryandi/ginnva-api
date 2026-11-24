@@ -119,6 +119,7 @@ class UserResource extends Resource
             // Laporan omzet (Ringkasan, Per Periode, Outlet, Buku Pembayaran, Refund, Pembatalan, Jasa, Penjualan Produk, Perputaran
             // Stok, Stok Kedaluwarsa) butuh kotak ini dicentang secara eksplisit (User::hasExplicitMenuAccess).
             'Laporan Penjualan' => [
+                'InvoiceSalesReport' => 'Laporan Penjualan (dari Invoice)',
                 'SalesSummaryReport' => 'Ringkasan Penjualan',
                 'SalesByPeriodReport' => 'Penjualan Per Periode',
                 'SalesByOutletReport' => 'Penjualan Outlet',
@@ -181,6 +182,7 @@ class UserResource extends Resource
                 'InventoryMovementResource' => 'Riwayat Keluar/Masuk',
                 'RawMaterialResource' => 'Daftar Bahan Baku',
                 'RawMaterialMovementResource' => 'Riwayat Bahan Baku',
+                'StockBatchResource' => 'Batch Penerimaan',
                 'AssetResource' => 'Aset Tetap',
                 'ConsumableItemResource' => 'Barang Habis Pakai',
                 'ConsumableItemMovementResource' => 'Riwayat Barang Habis Pakai',
