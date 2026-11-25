@@ -207,6 +207,21 @@ class WebPushTest extends TestCase
         $this->assertSame('Tes notifikasi Ginnva', json_decode($this->queued[0]['payload'], true)['title']);
     }
 
+    public function test_the_real_client_can_be_built_with_real_vapid_keys(): void
+    {
+        // Tes lain memakai klien palsu, jadi dulu tidak menangkap salah argumen konstruktor WebPush (v11: argumen ketiga = klien HTTP, bukan
+        // batas waktu). Di sini klien nyata dibuat dengan pasangan kunci VAPID yang sah. Pasangan ini khusus tes (dibuat sekali, tidak dipakai di
+        // mana pun); kunci tidak dibuat ulang tiap tes karena pembuatan kunci EC butuh konfigurasi OpenSSL yang tidak selalu ada di Windows.
+        config([
+            'services.webpush.public_key' => 'BCMVEiBfNiUktC5Rrsam2IAovyJGhjifJHrzCMkMWQeZTWnJAoyYFUCCTkhFiuKz09R5X12kj6U5LfUnie-v9L4',
+            'services.webpush.private_key' => 'sUo6Gx4Hph1NpdIBYT2p5wylAxr8uCOpSOzjrGmxSzQ',
+        ]);
+
+        $client = (new \ReflectionMethod(WebPushService::class, 'client'))->invoke(new WebPushService());
+
+        $this->assertInstanceOf(WebPush::class, $client);
+    }
+
     public function test_the_settings_page_opens_for_any_panel_user_and_lists_my_devices(): void
     {
         $user = $this->user();

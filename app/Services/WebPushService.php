@@ -118,12 +118,14 @@ class WebPushService
             return ($this->clientFactory)();
         }
 
+        // Argumen ketiga di minishlink/web-push v11 adalah klien HTTP PSR-18 (bukan batas waktu seperti di versi lama); dibiarkan kosong
+        // supaya library memilih klien yang terpasang sendiri.
         return new WebPush([
             'VAPID' => [
                 'subject' => config('services.webpush.subject') ?: config('app.url'),
                 'publicKey' => config('services.webpush.public_key'),
                 'privateKey' => config('services.webpush.private_key'),
             ],
-        ], ['TTL' => 3600], 15);
+        ], ['TTL' => 3600]);
     }
 }
