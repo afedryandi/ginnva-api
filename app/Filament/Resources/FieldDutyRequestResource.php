@@ -159,6 +159,23 @@ class FieldDutyRequestResource extends Resource
                             . ($record->end_accuracy !== null ? ' · akurasi GPS ±' . round($record->end_accuracy) . ' m' : ($record->end_photo ? ' · tanpa koordinat' : ''))
                         : null),
 
+                // Jam foto dikirim, terlihat langsung (bukan hanya tooltip) dan tidak bergantung pada status pengajuan.
+                Tables\Columns\TextColumn::make('location_photo_at')
+                    ->label('Jam Foto Awal')
+                    ->dateTime('d M H:i')
+                    ->placeholder('Belum')
+                    ->description(fn (FieldDutyRequest $record) => $record->location_photo_at && $record->location_accuracy !== null ? 'GPS ±' . round($record->location_accuracy) . ' m' : null)
+                    ->sortable()
+                    ->toggleable(),
+
+                Tables\Columns\TextColumn::make('end_photo_at')
+                    ->label('Jam Foto Akhir')
+                    ->dateTime('d M H:i')
+                    ->placeholder('Belum')
+                    ->description(fn (FieldDutyRequest $record) => $record->end_photo_at && $record->end_accuracy !== null ? 'GPS ±' . round($record->end_accuracy) . ' m' : null)
+                    ->sortable()
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('status')
                     ->label('Status')
                     ->badge()
@@ -206,7 +223,7 @@ class FieldDutyRequestResource extends Resource
                     ->label('Foto Awal')
                     ->icon('heroicon-o-photo')
                     ->iconButton()
-                    ->tooltip('Foto Awal')
+                    ->tooltip(fn (FieldDutyRequest $record) => 'Foto Awal' . ($record->location_photo_at ? ' · dikirim ' . $record->location_photo_at->translatedFormat('d M Y H:i') : ''))
                     ->color('gray')
                     ->visible(fn (FieldDutyRequest $record) => filled($record->location_photo))
                     ->url(fn (FieldDutyRequest $record) => \App\Support\SensitiveFiles::url($record->location_photo))
@@ -216,7 +233,7 @@ class FieldDutyRequestResource extends Resource
                     ->label('Foto Akhir')
                     ->icon('heroicon-o-photo')
                     ->iconButton()
-                    ->tooltip('Foto Akhir')
+                    ->tooltip(fn (FieldDutyRequest $record) => 'Foto Akhir' . ($record->end_photo_at ? ' · dikirim ' . $record->end_photo_at->translatedFormat('d M Y H:i') : ''))
                     ->color('gray')
                     ->visible(fn (FieldDutyRequest $record) => filled($record->end_photo))
                     ->url(fn (FieldDutyRequest $record) => \App\Support\SensitiveFiles::url($record->end_photo))
