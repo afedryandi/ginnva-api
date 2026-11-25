@@ -224,13 +224,20 @@ class AttendanceCorrectionRequestResource extends Resource
                             })
                             ->columnSpanFull(),
 
+                        // Hari itu tercatat Dinas Luar sehari penuh: menyetujui koreksi menggantinya jadi absen biasa, jadi butuh konfirmasi eksplisit.
+                        Forms\Components\Checkbox::make('confirm_field_duty')
+                            ->label('Saya paham: Dinas Luar sehari penuh tanggal ini akan diganti menjadi absen biasa sesuai jam koreksi')
+                            ->visible(fn () => static::dayIsFieldDuty($record))
+                            ->accepted()
+                            ->columnSpanFull(),
+
                         Forms\Components\Textarea::make('review_notes')
                             ->label('Catatan (opsional)')
                             ->rows(2),
                     ])
                     ->action(function (AttendanceCorrectionRequest $record, array $data) {
                         try {
-                            app(AttendanceCorrectionService::class)->approve($record, auth()->id(), $data['review_notes'] ?: null);
+                            app(AttendanceCorrectionService::class)->approve($record, auth()->id(), $data['review_notes'] ?: null, (bool) ($data['confirm_field_duty'] ?? false));
 
                             Notification::make()->title('Koreksi disetujui, data absensi diperbarui')->success()->send();
                         } catch (\RuntimeException $e) {
@@ -288,6 +295,15 @@ class AttendanceCorrectionRequestResource extends Resource
 
                 Tables\Actions\ViewAction::make()->iconButton()->tooltip('Lihat detail'),
             ]);
+    }
+
+    /** Hari koreksi itu saat ini tercatat sebagai Dinas Luar sehari penuh (baris absensi bertipe field_duty). */
+    private static function dayIsFieldDuty(AttendanceCorrectionRequest $request): bool
+    {
+        return \App\Models\Attendance::where('user_id', $request->user_id)
+            ->whereDate('date', $request->date->toDateString())
+            ->where('entry_type', 'field_duty')
+            ->exists();
     }
 
     /** Peringatan bila penggajian bulan pengajuan sudah dikunci atau berupa draf yang perlu digenerate ulang. */

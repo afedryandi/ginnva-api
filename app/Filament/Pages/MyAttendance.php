@@ -472,7 +472,15 @@ class MyAttendance extends Page
                 Forms\Components\DatePicker::make('date')
                     ->label('Tanggal Absensi')
                     ->required()
+                    ->live()
                     ->maxDate(today()),
+
+                // Hari itu tercatat Dinas Luar sehari penuh: koreksi yang disetujui menggantinya menjadi absen biasa.
+                Forms\Components\Placeholder::make('field_duty_notice')
+                    ->hiddenLabel()
+                    ->content('Tanggal ini tercatat Dinas Luar sehari penuh yang sudah disetujui. Kalau koreksi ini disetujui, Dinas Luar hari itu diganti menjadi absen biasa sesuai jam yang kamu isi. Ajukan hanya bila kamu memang absen di toko pada hari itu.')
+                    ->visible(fn (\Filament\Forms\Get $get) => filled($get('date'))
+                        && app(AttendanceCorrectionService::class)->fullDayFieldDutyOn((int) auth()->id(), (string) $get('date')) !== null),
 
                 Forms\Components\TimePicker::make('clock_in_at')->label('Jam Masuk')->seconds(false),
 

@@ -176,6 +176,44 @@ class AttendanceCorrectionServiceTest extends TestCase
         $this->assertSame('18:00', $attendance->fresh()->clock_out_at->format('H:i'));
     }
 
+    public function test_approving_a_correction_over_a_full_day_field_duty_needs_an_explicit_confirmation(): void
+    {
+        [$store, $user] = $this->makeStoreAndUser();
+        $manager = User::create(['name' => 'Manager', 'email' => 'mgr-fd@test.local', 'password' => 'x', 'store_id' => $store->id]);
+
+        \App\Models\FieldDutyRequest::create([
+            'user_id' => $user->id, 'store_id' => $store->id, 'date' => '2026-09-20', 'description' => 'Kanvasing',
+            'status' => \App\Models\FieldDutyRequest::STATUS_APPROVED,
+        ]);
+        Attendance::create(['user_id' => $user->id, 'store_id' => $store->id, 'date' => '2026-09-20', 'entry_type' => 'field_duty']);
+
+        $service = app(AttendanceCorrectionService::class);
+        $this->assertNotNull($service->fullDayFieldDutyOn($user->id, '2026-09-20'));
+        $this->assertNull($service->fullDayFieldDutyOn($user->id, '2026-09-21'));
+
+        $request = $service->submit([
+            'attendance_id' => null, 'user_id' => $user->id, 'store_id' => $store->id, 'date' => '2026-09-20', 'entry_type' => 'manual',
+            'clock_in_at' => '2026-09-20 08:00:00', 'clock_out_at' => '2026-09-20 17:00:00', 'reason' => 'Ternyata masuk toko',
+        ], $user->id);
+
+        // Tanpa konfirmasi: ditolak, baris Dinas Luar utuh, pengajuan masih menunggu.
+        try {
+            $service->approve($request, $manager->id);
+            $this->fail('Koreksi atas Dinas Luar sehari penuh seharusnya butuh konfirmasi.');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('Dinas Luar sehari penuh', $e->getMessage());
+        }
+
+        $this->assertSame('field_duty', Attendance::where('user_id', $user->id)->whereDate('date', '2026-09-20')->value('entry_type'));
+        $this->assertTrue($request->fresh()->isPending());
+
+        // Dengan konfirmasi: baris diganti absen biasa.
+        $attendance = $service->approve($request, $manager->id, null, true);
+
+        $this->assertSame('manual', $attendance->entry_type);
+        $this->assertSame(AttendanceCorrectionRequest::STATUS_APPROVED, $request->fresh()->status);
+    }
+
     public function test_approving_refuses_a_clock_out_before_the_recorded_clock_in(): void
     {
         [$store, $user] = $this->makeStoreAndUser();

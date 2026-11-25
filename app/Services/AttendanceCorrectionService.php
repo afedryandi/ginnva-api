@@ -152,9 +152,28 @@ class AttendanceCorrectionService
      * dst) -- isPending() sekarang dicek ULANG pada baris yang SUDAH
      * dikunci, bukan objek $request lama di memori.
      */
-    public function approve(AttendanceCorrectionRequest $request, int $approvedBy, ?string $notes = null): Attendance
+    /**
+     * Dinas luar sehari penuh yang sudah disetujui di tanggal itu. Kehadirannya tercatat sebagai baris 'field_duty'; koreksi yang disetujui akan menimpa baris itu
+     * menjadi absen biasa, jadi pengaju dan penyetuju perlu diberi tahu (lihat approve()).
+     */
+    public function fullDayFieldDutyOn(int $userId, string $date): ?\App\Models\FieldDutyRequest
     {
-        return DB::transaction(function () use ($request, $approvedBy, $notes) {
+        return \App\Models\FieldDutyRequest::withoutGlobalScopes()
+            ->where('user_id', $userId)
+            ->whereDate('date', $date)
+            ->where('status', \App\Models\FieldDutyRequest::STATUS_APPROVED)
+            ->whereNull('start_time')
+            ->whereNull('end_time')
+            ->first();
+    }
+
+    /**
+     * @param  bool  $replaceFieldDuty  harus true bila hari itu tercatat Dinas Luar sehari penuh: koreksi menggantinya menjadi absen biasa, dan itu hanya boleh
+     *                                  atas konfirmasi penyetuju (kotak centang di halaman Koreksi Absensi), tidak diam-diam.
+     */
+    public function approve(AttendanceCorrectionRequest $request, int $approvedBy, ?string $notes = null, bool $replaceFieldDuty = false): Attendance
+    {
+        return DB::transaction(function () use ($request, $approvedBy, $notes, $replaceFieldDuty) {
             $locked = AttendanceCorrectionRequest::whereKey($request->id)->lockForUpdate()->first();
 
             if (! $locked || ! $locked->isPending()) {
@@ -172,6 +191,10 @@ class AttendanceCorrectionService
 
             // Jam yang tidak diisi pengaju tetap memakai jam yang sudah tercatat (mis. hanya melengkapi jam keluar), bukan dikosongkan.
             $existing = Attendance::where('user_id', $locked->user_id)->where('date', $locked->date->toDateString())->first();
+            if (! $replaceFieldDuty && $existing?->entry_type === 'field_duty') {
+                throw new RuntimeException('Tanggal ini tercatat Dinas Luar sehari penuh yang sudah disetujui. Menyetujui koreksi akan mengganti Dinas Luar menjadi absen biasa. Setujui dari halaman Koreksi Absensi dengan mencentang konfirmasinya, atau tolak koreksi ini.');
+            }
+
             $clockIn = $locked->clock_in_at ?? $existing?->clock_in_at;
             $clockOut = $locked->clock_out_at ?? $existing?->clock_out_at;
 
