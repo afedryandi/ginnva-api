@@ -642,6 +642,27 @@ class FieldDutyRequestTest extends TestCase
         $this->assertNotNull(FieldDutyRequest::withoutGlobalScopes()->where('user_id', $this->andi->id)->value('location_photo'));
     }
 
+    public function test_the_panel_page_also_takes_the_photo_while_the_request_is_still_pending_on_the_day(): void
+    {
+        // Link "Absen Masuk Lokasi" di Absensi Saya muncul untuk pengajuan yang masih menunggu di hari-H; halaman fotonya dulu hanya
+        // menerima yang sudah disetujui, sehingga karyawan melihat "tidak ada dinas luar yang butuh foto".
+        \Illuminate\Support\Facades\Storage::fake('local');
+        $request = $this->submit();
+        Carbon::setTestNow('2026-11-13 10:00:00');
+        $this->assertSame('pending', $request->fresh()->status);
+
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $this->actingAs($this->andi);
+
+        Livewire::test(\App\Filament\Pages\FieldDutyPhoto::class)
+            ->assertSee('Dinas luar hari ini')
+            ->set('photo', \Illuminate\Http\UploadedFile::fake()->image('lokasi.jpg', 600, 600))
+            ->call('submitPhoto')
+            ->assertHasNoErrors();
+
+        $this->assertNotNull(FieldDutyRequest::withoutGlobalScopes()->where('user_id', $this->andi->id)->value('location_photo'));
+    }
+
     public function test_the_panel_page_rejects_a_missing_photo_and_other_peoples_duty(): void
     {
         $this->approvedForToday();

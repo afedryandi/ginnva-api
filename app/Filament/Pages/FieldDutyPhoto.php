@@ -43,12 +43,15 @@ class FieldDutyPhoto extends Page
             && ($user->hasMenuAccess(FieldDutyRequestResource::class) || MyAttendance::canAccess());
     }
 
-    /** Dinas luar milik sendiri yang disetujui, hari ini, dan masih butuh foto awal atau foto akhir. */
+    /**
+     * Dinas luar milik sendiri hari ini yang masih butuh foto awal atau foto akhir. Termasuk yang masih menunggu persetujuan: karyawan boleh
+     * mengirim foto di hari dinas sebelum atasan sempat menyetujui (sama seperti aplikasi dan FieldDutyRequestService), fotonya dinilai begitu disetujui.
+     */
     public function pending(): ?FieldDutyRequest
     {
         return FieldDutyRequest::withoutGlobalScopes()
             ->where('user_id', auth()->id())
-            ->where('status', FieldDutyRequest::STATUS_APPROVED)
+            ->whereIn('status', [FieldDutyRequest::STATUS_APPROVED, FieldDutyRequest::STATUS_PENDING])
             ->whereDate('date', today())
             ->where(fn ($q) => $q->whereNull('location_photo')->orWhereNull('end_photo'))
             ->orderBy('id')

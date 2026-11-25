@@ -72,7 +72,7 @@
     }" x-on:beforeunload.window="closeCam()">
         <div class="pu-stack">
             @if (! $duty)
-                <div class="pu-bar">Tidak ada dinas luar yang butuh foto hari ini. Foto hanya bisa dikirim pada hari dinas yang sudah disetujui.</div>
+                <div class="pu-bar">Tidak ada dinas luar yang butuh foto hari ini. Foto dikirim pada hari dinas, setelah pengajuan disetujui atau selagi masih menunggu.</div>
             @else
                 <div class="pu-bar">
                     Dinas luar hari ini: <span class="pu-strong">{{ $duty->description ?: 'Dinas luar' }}</span>.
