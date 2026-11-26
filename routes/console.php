@@ -145,10 +145,10 @@ Schedule::command('notifications:send-scheduled')->everyMinute()->withoutOverlap
 // Lihat App\Console\Commands\NotifyForgottenClockouts/NotifyMissingClockins.
 Schedule::command('attendance:notify-forgotten-clockouts')->dailyAt('08:00');
 Schedule::command('attendance:notify-missing-clockins')->hourlyAt(5)->between('07:00', '21:00');
-// Pengingat ke karyawan sendiri tepat saat jam buka (absen masuk) dan 5 menit setelah jam tutup (absen pulang), serta ke pemutus untuk
+// Pengingat ke karyawan sendiri tepat saat jam buka (absen masuk) dan tepat saat jam tutup (absen pulang, dicek tiap menit), serta ke pemutus untuk
 // pengajuan izin/koreksi yang menunggu terlalu lama.
 Schedule::command('attendance:remind-clockins')->everyFiveMinutes()->between('06:00', '21:00');
-Schedule::command('attendance:remind-clockouts')->everyFiveMinutes()->between('12:00', '23:55');
+Schedule::command('attendance:remind-clockouts')->everyMinute()->between('12:00', '23:55')->withoutOverlapping();
 Schedule::command('attendance:remind-pending-requests')->dailyAt('09:00');
 // Pengingat foto akhir dinas luar, 15 menit sebelum jam selesai dinas (2026-12-21).
 Schedule::command('field-duty:remind-end-photo')->everyFiveMinutes()->between('06:00', '23:55')->withoutOverlapping();

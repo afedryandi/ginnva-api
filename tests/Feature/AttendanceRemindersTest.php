@@ -138,11 +138,11 @@ class AttendanceRemindersTest extends TestCase
         $this->assertCount(1, $this->inboxTitles($late));
     }
 
-    // ------------------------------------------------------------- (b) pengingat absen pulang, 5 menit setelah jam tutup
+    // ------------------------------------------------------------- (b) pengingat absen pulang, tepat saat jam tutup
 
-    public function test_clockout_reminder_goes_to_the_employee_five_minutes_after_closing_and_mentions_the_radius(): void
+    public function test_clockout_reminder_goes_to_the_employee_at_closing_time_and_mentions_the_radius(): void
     {
-        Carbon::setTestNow('2026-11-11 18:07:00'); // ambang 18:00 + 5 = 18:05
+        Carbon::setTestNow('2026-11-11 18:00:00'); // ambang = jam tutup 18:00
         $this->store->update(['attendance_radius_meters' => 120]);
         $forgot = $this->user('kasir', $this->store, 'Rina');
         $done = $this->user('kasir', $this->store, 'Sari');
@@ -161,13 +161,13 @@ class AttendanceRemindersTest extends TestCase
         $forgot = $this->user('kasir', $this->store, 'Rina');
         Attendance::create(['user_id' => $forgot->id, 'store_id' => $this->store->id, 'date' => '2026-11-11', 'entry_type' => 'clock', 'clock_in_at' => '2026-11-11 09:00:00']);
 
-        Carbon::setTestNow('2026-11-11 18:03:00'); // belum 18:05
+        Carbon::setTestNow('2026-11-11 17:59:00'); // belum jam tutup 18:00
         $this->artisan('attendance:remind-clockouts')->assertSuccessful();
         $this->assertSame([], $this->inboxTitles($forgot));
 
-        Carbon::setTestNow('2026-11-11 18:06:00');
+        Carbon::setTestNow('2026-11-11 18:00:00');
         $this->artisan('attendance:remind-clockouts')->assertSuccessful();
-        Carbon::setTestNow('2026-11-11 18:11:00'); // putaran berikutnya: tidak diulang
+        Carbon::setTestNow('2026-11-11 18:01:00'); // putaran berikutnya: tidak diulang
         $this->artisan('attendance:remind-clockouts')->assertSuccessful();
         $this->assertCount(1, $this->inboxTitles($forgot), 'Satu pengingat per karyawan per hari.');
     }
@@ -177,7 +177,7 @@ class AttendanceRemindersTest extends TestCase
         $forgot = $this->user('kasir', $this->store, 'Rina');
         Attendance::create(['user_id' => $forgot->id, 'store_id' => $this->store->id, 'date' => '2026-11-11', 'entry_type' => 'clock', 'clock_in_at' => '2026-11-11 09:00:00']);
 
-        Carbon::setTestNow('2026-11-11 20:00:00'); // lewat 18:05 + 60 menit
+        Carbon::setTestNow('2026-11-11 20:00:00'); // lewat 18:00 + 60 menit
         $this->artisan('attendance:remind-clockouts')->assertSuccessful();
 
         $this->assertSame([], $this->inboxTitles($forgot));
@@ -248,7 +248,7 @@ class AttendanceRemindersTest extends TestCase
         $clockins = $expressions->first(fn ($expr, $cmd) => str_contains((string) $cmd, 'attendance:remind-clockins'));
 
         $this->assertSame('*/5 * * * *', $clockins);
-        $this->assertSame('*/5 * * * *', $clockouts);
+        $this->assertSame('* * * * *', $clockouts, 'Pengingat pulang dicek tiap menit agar terkirim tepat jam tutup.');
         $this->assertSame('0 9 * * *', $pending);
     }
 }

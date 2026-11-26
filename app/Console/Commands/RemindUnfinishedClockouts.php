@@ -10,21 +10,21 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 
 /**
- * Pengingat absen pulang ke KARYAWAN-nya sendiri, 5 menit setelah jam tutup toko (2026-11-11, permintaan pemilik). NotifyForgottenClockouts baru
+ * Pengingat absen pulang ke KARYAWAN-nya sendiri, tepat saat jam tutup toko (2026-11-11 permintaan pemilik, tadinya 5 menit sesudahnya; 2026-11-26 diubah jadi persis jam tutup). NotifyForgottenClockouts baru
  * memberi tahu staf toko keesokan paginya, saat karyawan sudah tidak bisa absen pulang lagi dan jamnya harus dikoreksi lewat pengajuan.
  * Absen pulang HARUS dilakukan di dalam radius toko (ditolak server bila di luar), jadi pengingat dikirim cepat, selagi karyawan kemungkinan
  * masih di toko, dan pesannya menyebut radiusnya. Hari yang lupa absen pulang tidak ikut Total Jam Kerja di rekap absensi.
  *
- * Jalan tiap 5 menit. Dedup dengan kunci cache per karyawan per hari (Cache::add atomik): satu pengingat per karyawan per hari. Jendela atas
+ * Jalan tiap menit supaya pengingat terkirim di menit jam tutup itu sendiri. Dedup dengan kunci cache per karyawan per hari (Cache::add atomik): satu pengingat per karyawan per hari. Jendela atas
  * {@see self::CATCH_UP_MINUTES} menutup putaran yang terlewat.
  */
 class RemindUnfinishedClockouts extends Command
 {
     protected $signature = 'attendance:remind-clockouts';
 
-    protected $description = 'Ingatkan karyawan yang sudah absen masuk tapi belum absen pulang 5 menit setelah jam tutup toko';
+    protected $description = 'Ingatkan karyawan yang sudah absen masuk tapi belum absen pulang tepat saat jam tutup toko';
 
-    public const AFTER_MINUTES = 5;
+    public const AFTER_MINUTES = 0;
 
     private const CATCH_UP_MINUTES = 60;
 

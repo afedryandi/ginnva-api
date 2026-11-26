@@ -347,7 +347,7 @@ class OvertimeRequestTest extends TestCase
         $this->artisan('attendance:remind-clockouts')->assertSuccessful();
         $this->assertSame([], $this->andi->notifications()->get()->all(), 'Belum diingatkan selama lembur berjalan.');
 
-        Carbon::setTestNow('2026-11-12 20:36:00'); // 20:30 + 5 menit
+        Carbon::setTestNow('2026-11-12 20:30:00'); // lembur selesai 20:30 = ambang pengingat
         $this->artisan('attendance:remind-clockouts')->assertSuccessful();
         $this->assertNotEmpty($this->andi->notifications()->get()->where('data.title', 'Jangan Lupa Absen Pulang'));
     }
