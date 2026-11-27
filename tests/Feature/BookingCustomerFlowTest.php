@@ -116,7 +116,7 @@ class BookingCustomerFlowTest extends TestCase
 
         $this->asCustomer()->postJson('/api/customer/bookings', $this->payload(['preferred_date' => $this->date(5)]))
             ->assertStatus(422);
-        // Booking PPF 3 hari menempati hari berikutnya juga; tanggal jauh tetap bisa.
+        // Booking PPF 4 hari menempati hari berikutnya juga; tanggal jauh tetap bisa.
         $this->asCustomer()->postJson('/api/customer/bookings', $this->payload(['preferred_date' => $this->date(12)]))
             ->assertStatus(201);
     }

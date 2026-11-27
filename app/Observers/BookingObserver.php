@@ -98,6 +98,12 @@ class BookingObserver
      */
     public function updated(Booking $booking): void
     {
+        // Pelanggan atau kendaraan di booking berubah: SPK dan Memo anaknya ikut (satu tempat untuk koreksi). Di atas guard customer_id supaya
+        // booking manual (tanpa akun pelanggan) juga tercakup.
+        if ($booking->wasChanged(\App\Services\BookingMirror::WATCHED)) {
+            \App\Services\BookingMirror::syncChildren($booking);
+        }
+
         // Bagian C, "Klaim Garansi & Maintenance PPF" (2026-10-01) -- di
         // ATAS guard customer_id di bawah SENGAJA (tidak bergantung customer
         // punya akun app, murni soal warranty_id terisi atau tidak). Titik
@@ -292,6 +298,26 @@ class BookingObserver
         // ke match status di atas) — status TIDAK berubah di sini, cuma
         // tanggalnya, jadi keduanya independen dan bisa terjadi sekaligus
         // dalam 1 update (mis. staff ganti tanggal SEKALIGUS approve).
+        // Lama pengerjaan berubah pada booking yang sudah confirmed (biasanya setelah SPK, via BookingDurationService): pelanggan diberi tahu
+        // estimasi selesai yang baru. Tidak dikirim bila tanggal atau status ikut berubah di update yang sama (sudah punya notifikasinya sendiri).
+        if ($booking->wasChanged('duration_days') && $booking->status === 'confirmed'
+            && ! $booking->wasChanged('preferred_date') && ! $booking->wasChanged('status')) {
+            $selesai = $booking->end_date?->format('d M Y');
+            $hari = (int) $booking->duration_days;
+            $alasanDurasi = $booking->rescheduleReason ? " Alasan: {$booking->rescheduleReason}" : '';
+
+            DB::afterCommit(fn () => $this->push->sendToCustomer(
+                $booking->customer_id,
+                'Estimasi Pengerjaan Berubah',
+                "Estimasi pengerjaan booking #{$booking->booking_number} menjadi {$hari} hari kerja" . ($selesai ? ", selesai sekitar {$selesai}." : '.') . $alasanDurasi,
+                [
+                    'type'       => 'booking_duration_changed',
+                    'booking_id' => $booking->id,
+                    'route'      => "/booking/{$booking->id}/chat",
+                ]
+            ));
+        }
+
         if ($booking->wasChanged('preferred_date') && $booking->status === 'confirmed') {
             $tanggalLama = $booking->getOriginal('preferred_date');
             $tanggalLama = $tanggalLama ? \Illuminate\Support\Carbon::parse($tanggalLama)->format('d M Y') : null;

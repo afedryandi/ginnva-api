@@ -14,7 +14,7 @@ class CustomerVehicle extends Model
 
     protected $fillable = [
         'customer_id', 'vehicle_id', 'brand', 'model', 'variant', 'plate', 'plate_normalized',
-        'year', 'color', 'size_category', 'vin', 'is_default',
+        'year', 'color', 'size_category', 'vehicle_power', 'vin', 'is_default',
     ];
 
     protected $casts = [

@@ -252,6 +252,11 @@ class BookingResource extends Resource
                         ->options(array_combine(\App\Models\CustomerVehicle::SIZES, \App\Models\CustomerVehicle::SIZES))
                         ->placeholder('Belum ditentukan')
                         ->helperText('Menentukan harga acuan PPF dan Kaca Film. Kosongkan kalau belum tahu.'),
+                    Forms\Components\Select::make('vehicle_power')->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))->dehydrated()
+                        ->label('Jenis Tenaga')
+                        ->options(\App\Support\VehicleFormat::POWERS)
+                        ->placeholder('Belum ditentukan')
+                        ->helperText('Menentukan kolom SPK: BBM untuk bensin, Battery untuk listrik, keduanya untuk hybrid.'),
                 ]),
 
             Forms\Components\Section::make('Toko & Penugasan')
@@ -636,7 +641,7 @@ class BookingResource extends Resource
                         ->default(Booking::DEFAULT_DURATION_DAYS_DEFAULT)
                         ->live()
                         ->required()
-                        ->helperText('Berapa hari mobil ini memakai slot instalasi (untuk cek kapasitas). Default PPF 3 hari, lainnya 1 hari.'),
+                        ->helperText('Berapa hari mobil ini memakai slot instalasi (untuk cek kapasitas). Perkiraan awal PPF 4 hari, lainnya 1 hari. Setelah SPK, lama sebenarnya bisa diatur dari SPK ("Atur Lama Pengerjaan").'),
 
                     Forms\Components\Textarea::make('reschedule_reason')
 ->label(fn (?Booking $record) => $record?->status === 'confirmed' ? 'Alasan Pindah Jadwal' : 'Alasan Pindah Jadwal (opsional)')
@@ -714,7 +719,7 @@ class BookingResource extends Resource
 
                     Forms\Components\Textarea::make('notes')
                         ->label('Catatan')
-                        ->placeholder('Tipe mobil, warna, permintaan khusus, dll.')
+                        ->placeholder('Model mobil, warna, permintaan khusus, dll.')
                         ->columnSpanFull(),
 
                 ]),
@@ -847,6 +852,7 @@ class BookingResource extends Resource
                     TextEntry::make('vehicle_color')->label('Warna')->placeholder('—'),
                     TextEntry::make('vehicle_year')->label('Tahun')->placeholder('—'),
                     TextEntry::make('vehicle_size')->label('Ukuran Mobil')->badge()->placeholder('Belum ditentukan'),
+                    TextEntry::make('vehicle_power')->label('Jenis Tenaga')->formatStateUsing(fn ($state) => \App\Support\VehicleFormat::POWERS[$state] ?? $state)->placeholder('Belum ditentukan'),
                 ]),
 
             InfolistSection::make('Layanan & Produk')
@@ -2181,7 +2187,7 @@ class BookingResource extends Resource
     /** Kolom data inti yang tidak boleh berubah lewat form Ubah saat terkunci (penjaga server di EditBooking). */
     public const CORE_LOCKED_FIELDS = [
         'source', 'customer_id', 'customer_name', 'phone_number',
-        'vehicle_plate', 'vehicle_brand', 'vehicle_model', 'vehicle_variant', 'vehicle_color', 'vehicle_year', 'vehicle_size',
+        'vehicle_plate', 'vehicle_brand', 'vehicle_model', 'vehicle_variant', 'vehicle_color', 'vehicle_year', 'vehicle_size', 'vehicle_power',
         'store_id', 'service_type', 'product_kaca_film', 'product_ppf', 'product_detailing', 'product_premium_wash',
         'ppf_area', 'ppf_exterior', 'ppf_interior', 'ppf_scope', 'preferred_date', 'preferred_time', 'duration_days',
     ];

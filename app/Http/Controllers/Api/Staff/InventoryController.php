@@ -339,7 +339,7 @@ class InventoryController extends Controller
             ->orderByRaw('checked_out_at IS NULL DESC')
             ->orderByDesc('created_at')
             ->limit(20)
-            ->get(['id', 'spk_number', 'customer_name', 'vehicle_brand', 'vehicle_plate', 'booking_id', 'checked_out_at']);
+            ->get(['id', 'spk_number', 'customer_name', 'vehicle_brand', 'vehicle_model', 'vehicle_variant', 'vehicle_year', 'vehicle_plate', 'booking_id', 'checked_out_at']);
 
         return response()->json(['success' => true, 'data' => $spks]);
     }

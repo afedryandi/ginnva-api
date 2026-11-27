@@ -43,6 +43,8 @@ class BookingController extends Controller
             ->with(['store', 'pendingRescheduleRequest', 'latestDecidedRescheduleRequest', 'pendingCancellationRequest', 'latestDecidedCancellationRequest'])
             // Pesan staff yang belum dibaca customer (badge kartu booking).
             ->withCount(['messages as unread_count' => fn ($q) => $q->where('sender_type', 'admin')->whereNull('read_by_customer_at')])
+            // Tombol "Lihat SPK" di kartu booking hanya muncul bila SPK-nya sudah dibuat (2026-11-27).
+            ->withExists('spk as has_spk')
             ->orderByDesc('created_at')
             ->orderByDesc('id');
 
@@ -68,6 +70,64 @@ class BookingController extends Controller
         return response()->json([
             'success' => true,
             'data' => $query->get()->each(fn (Booking $b) => $this->sanitize($b)),
+        ]);
+    }
+
+    /**
+     * GET /api/customer/bookings/{id}/spk
+     * Pelanggan boleh melihat SPK booking miliknya, hanya baca (keputusan pemilik 2026-11-27). Daftar putih kolom: yang tampil hanya
+     * yang menjadi bukti kondisi dan pekerjaan di kendaraannya. Catatan internal SPK, nama installer, dan memo barang tidak ikut.
+     */
+    public function spk(Request $request, int $id)
+    {
+        $booking = $request->user('customer')->bookings()->where('id', $id)->first();
+
+        if (! $booking) {
+            abort(404);
+        }
+
+        $spk = $booking->spk()->with(['checklistItems', 'damageMarks', 'store:id,name'])->first();
+
+        if (! $spk) {
+            return response()->json(['success' => false, 'message' => 'SPK untuk booking ini belum dibuat.'], 404);
+        }
+
+        // Hanya butir yang dicentang: yang dikerjakan (pekerjaan, extra service) dan yang diterima toko (perlengkapan).
+        $checked = fn (string $category) => $spk->checklistItems->where('category', $category)->where('is_checked', true)->pluck('label')->values();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'spk_number' => $spk->spk_number,
+                'booking_number' => $booking->booking_number,
+                'store_name' => $spk->store?->name,
+                'checked_in_at' => $spk->checked_in_at?->toIso8601String(),
+                'checked_out_at' => $spk->checked_out_at?->toIso8601String(),
+                'vehicle' => [
+                    'plate' => $spk->vehicle_plate,
+                    // SPK lama menyimpan merek + model + varian di kolom merek; yang baru terpisah.
+                    'brand' => $spk->vehicle_brand,
+                    'model' => $spk->vehicle_model,
+                    'variant' => $spk->vehicle_variant,
+                    'year' => $spk->vehicle_year,
+                    // "Jenis" = jenis bodi (sedan, SUV, MPV, jeep); "Tipe" tidak dipakai lagi.
+                    'body_type' => \App\Models\Spk::VEHICLE_TYPE_LABELS[$spk->vehicle_type] ?? null,
+                    'km' => $spk->vehicle_km,
+                    'fuel' => \App\Models\Spk::FUEL_LEVEL_LABELS[$spk->fuel_level] ?? null,
+                    'battery_note' => $spk->battery_note,
+                ],
+                'checklist' => [
+                    'pekerjaan' => $checked('pekerjaan'),
+                    'extra_service' => $checked('extra_service'),
+                    'perlengkapan' => $checked('perlengkapan'),
+                ],
+                'damage_marks' => $spk->damageMarks->map(fn ($m) => [
+                    'x_percent' => (float) $m->x_percent,
+                    'y_percent' => (float) $m->y_percent,
+                    'code' => $m->code,
+                    'label' => \App\Models\Spk::DAMAGE_CODE_LABELS[$m->code] ?? $m->code,
+                ])->values(),
+            ],
         ]);
     }
 
@@ -266,6 +326,7 @@ class BookingController extends Controller
                 'vehicle_color'       => $vehicle->color,
                 'vehicle_year'        => $vehicle->year,
                 'vehicle_size'        => $vehicle->size_category,
+                'vehicle_power'       => $vehicle->vehicle_power,
             ];
         }
 

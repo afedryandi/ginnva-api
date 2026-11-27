@@ -69,7 +69,8 @@
                     <tr><td class="field-label">Telepon</td><td>: {{ $spk->phone_number }}</td></tr>
                     <tr><td class="field-label">No. Polisi</td><td>: {{ $spk->vehicle_plate }}</td></tr>
                     <tr><td class="field-label">No. Rangka</td><td>: {{ $spk->vehicle_vin }}</td></tr>
-                    <tr><td class="field-label">Merek / Tahun</td><td>: {{ $spk->vehicle_brand }} / {{ $spk->vehicle_year }}</td></tr>
+                    <tr><td class="field-label">Merek / Model</td><td>: {{ $spk->vehicle_name }}</td></tr>
+                    <tr><td class="field-label">Tahun</td><td>: {{ $spk->vehicle_year }}</td></tr>
                     <tr><td class="field-label">Jenis</td><td>: {{ \App\Models\Spk::VEHICLE_TYPE_LABELS[$spk->vehicle_type] ?? '-' }}</td></tr>
                     <tr><td class="field-label">Kilometer</td><td>: {{ $spk->vehicle_km ? number_format($spk->vehicle_km, 0, ',', '.') . ' Km' : '-' }}</td></tr>
                     <tr><td class="field-label">BBM / Battery</td><td>: {{ \App\Models\Spk::FUEL_LEVEL_LABELS[$spk->fuel_level] ?? '-' }} / {{ $spk->battery_note ?? '-' }}</td></tr>

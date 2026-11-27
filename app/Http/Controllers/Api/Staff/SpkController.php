@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Spk;
 use App\Models\User;
+use App\Services\BookingDurationService;
 use App\Services\SpkService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -123,7 +124,129 @@ class SpkController extends Controller
             return response()->json(['success' => false, 'message' => 'SPK tidak ditemukan.'], 404);
         }
 
-        return response()->json(['success' => true, 'data' => $spk]);
+        return response()->json(['success' => true, 'data' => $spk, 'duration' => $this->durationInfo($spk), 'vehicle' => $this->vehicleInfo($spk)]);
+    }
+
+    /**
+     * Lama pengerjaan booking yang terikat SPK ini (null untuk SPK manual tanpa booking). can_change: boleh diubah dari SPK
+     * (booking PPF/Kaca Film yang masih pending/confirmed).
+     */
+    private function durationInfo(Spk $spk): ?array
+    {
+        $booking = $spk->booking_id ? Booking::find($spk->booking_id) : null;
+
+        if (! $booking) {
+            return null;
+        }
+
+        return [
+            'days' => (int) $booking->effective_duration_days,
+            'start_date' => $booking->preferred_date?->toDateString(),
+            'end_date' => $booking->end_date?->toDateString(),
+            'can_change' => in_array($booking->status, ['pending', 'confirmed'], true) && ! $booking->isLightOnly(),
+            'min' => 1,
+            'max' => BookingDurationService::MAX_DAYS,
+        ];
+    }
+
+    /**
+     * Jenis tenaga kendaraan (dari booking) menentukan kolom yang tampil: BBM untuk bensin, Battery untuk listrik, keduanya untuk hybrid atau bila
+     * belum diketahui. locked = kolom SPK yang dibaca dari booking, tampil baca-saja di layar.
+     */
+    private function vehicleInfo(Spk $spk): array
+    {
+        return $this->vehicleInfoFor(\App\Services\BookingMirror::bookingFor($spk->booking_id ? (int) $spk->booking_id : null));
+    }
+
+    private function vehicleInfoFor(?Booking $booking): array
+    {
+        $power = $booking?->vehicle_power;
+
+        return [
+            'power' => $power,
+            'power_label' => \App\Support\VehicleFormat::POWERS[$power] ?? null,
+            'shows_fuel' => \App\Support\VehicleFormat::showsFuel($power),
+            'shows_battery' => \App\Support\VehicleFormat::showsBattery($power),
+            'locked' => \App\Services\BookingMirror::lockedSpkFields($booking),
+        ];
+    }
+
+    /**
+     * PUT /api/staff/spks/{id}/duration
+     * Atur lama pengerjaan booking setelah kondisi kendaraan diperiksa (keputusan 2026-11-27). Boleh oleh siapa pun yang bisa
+     * membuka SPK ini, termasuk installer; pelanggan diberi tahu lewat push. Aturan & cek kapasitas di BookingDurationService.
+     */
+    public function updateDuration(Request $request, int $id, BookingDurationService $service)
+    {
+        if (! $this->authorize($request)) {
+            return response()->json(['success' => false, 'message' => 'Akun ini tidak punya akses ke SPK.'], 403);
+        }
+
+        $spk = Spk::find($id);
+
+        if (! $spk || ! $this->canAccess($request, $spk)) {
+            return response()->json(['success' => false, 'message' => 'SPK tidak ditemukan.'], 404);
+        }
+
+        $data = $request->validate([
+            'duration_days' => ['required', 'integer', 'min:1', 'max:' . BookingDurationService::MAX_DAYS],
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $booking = $spk->booking_id ? Booking::find($spk->booking_id) : null;
+
+        if (! $booking) {
+            return response()->json(['success' => false, 'message' => 'SPK ini belum terikat ke booking, jadi tidak ada lama pengerjaan yang bisa diatur.'], 422);
+        }
+
+        try {
+            $service->change($booking, (int) $data['duration_days'], $data['reason'] ?? null);
+        } catch (RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Lama pengerjaan diubah. Pelanggan diberi tahu.',
+            'duration' => $this->durationInfo($spk),
+        ]);
+    }
+
+    /**
+     * GET /api/staff/spks/prefill-from-booking?booking_id=
+     * Isian awal form SPK dari booking, sama dengan yang ditarik form SPK di panel (SpkService::prefillFromBooking): pelanggan, kendaraan
+     * (plat, merek/model, tahun, VIN), catatan booking, dan butir Uraian Pekerjaan sesuai layanan yang dipesan. Aksesnya sama dengan
+     * membuat SPK untuk booking itu: installer hanya booking yang ditugaskan padanya, staf lain hanya booking tokonya.
+     */
+    public function prefillFromBooking(Request $request)
+    {
+        if (! $this->authorize($request)) {
+            return response()->json(['success' => false, 'message' => 'Akun ini tidak punya akses ke SPK.'], 403);
+        }
+
+        $user = $request->user('api');
+        $booking = Booking::with('installers')->find((int) $request->query('booking_id'));
+
+        if (! $booking) {
+            return response()->json(['success' => false, 'message' => 'Booking tidak ditemukan.'], 404);
+        }
+
+        if ($user->hasRole('installer')) {
+            if (! $booking->installers->contains('id', $user->id)) {
+                return response()->json(['success' => false, 'message' => 'Booking ini tidak ditugaskan ke akun ini.'], 403);
+            }
+        } elseif (! $user->isFullAccess() && $booking->store_id !== $user->store_id) {
+            return response()->json(['success' => false, 'message' => 'Booking ini milik toko lain.'], 403);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'fields' => (object) SpkService::prefillFromBooking($booking),
+                'work_items' => SpkService::workItemLabels($booking),
+                'vehicle' => $this->vehicleInfoFor($booking),
+            ],
+        ]);
     }
 
     /**
@@ -141,6 +264,21 @@ class SpkController extends Controller
         // Staf lain tetap bisa melihat / melengkapi SPK sesuai aksesnya.
         if (! $user->canCreateSpk()) {
             return response()->json(['success' => false, 'message' => 'Hanya installer, leader installer, dan atasannya (store manager, direksi) yang bisa membuat SPK baru.'], 403);
+        }
+
+        // Rombakan alur (Fase 0): bila diwajibkan, SPK baru harus dibuat dari booking (SPK manual tidak ada lagi).
+        if (config('features.booking_required_for_spk_memo') && ! $request->filled('booking_id')) {
+            return response()->json(['success' => false, 'message' => 'SPK harus dibuat dari booking. Buat booking dulu kalau belum ada.'], 422);
+        }
+
+        // Nama pelanggan wajib. Untuk SPK dari booking, nama yang kosong dilengkapi dari booking (nama di booking atau akun pelanggannya), supaya
+        // klien yang gagal membaca nama (mis. booking buatan staf tanpa akun pelanggan) tidak membuat SPK ditolak.
+        if ($request->filled('booking_id') && blank($request->input('customer_name'))) {
+            $source = Booking::find((int) $request->input('booking_id'));
+
+            if ($source) {
+                $request->merge(['customer_name' => SpkService::prefillFromBooking($source)['customer_name'] ?? null]);
+            }
         }
 
         // spk_number: nomor SPK manual (opsional, unik); kosong = nomor otomatis. Hanya saat membuat.
@@ -424,10 +562,13 @@ class SpkController extends Controller
             'customer_name' => 'required|string|max:255',
             'phone_number' => 'nullable|string|max:30',
             'address' => 'nullable|string',
-            'vehicle_plate' => 'nullable|string|max:20',
+            // Batas dan aturan tahun sama dengan Booking dan Memo (VehicleFormat).
+            'vehicle_plate' => 'nullable|string|max:' . \App\Support\VehicleFormat::MAX_PLATE,
             'vehicle_vin' => 'nullable|string|max:50',
-            'vehicle_brand' => 'nullable|string|max:100',
-            'vehicle_year' => 'nullable|string|max:4',
+            'vehicle_brand' => 'nullable|string|max:' . \App\Support\VehicleFormat::MAX_BRAND,
+            'vehicle_model' => 'nullable|string|max:' . \App\Support\VehicleFormat::MAX_MODEL,
+            'vehicle_variant' => 'nullable|string|max:' . \App\Support\VehicleFormat::MAX_VARIANT,
+            'vehicle_year' => 'nullable|' . \App\Support\VehicleFormat::yearRule(),
             'vehicle_type' => 'nullable|in:sedan,suv,mpv,jeep',
             'vehicle_km' => 'nullable|integer|min:0',
             'fuel_level' => 'nullable|in:e,quarter,half,three_quarter,f',
@@ -456,6 +597,8 @@ class SpkController extends Controller
             'vehicle_plate',
             'vehicle_vin',
             'vehicle_brand',
+            'vehicle_model',
+            'vehicle_variant',
             'vehicle_year',
             'vehicle_type',
             'vehicle_km',

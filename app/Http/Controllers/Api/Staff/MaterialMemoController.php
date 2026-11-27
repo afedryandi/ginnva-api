@@ -244,7 +244,7 @@ class MaterialMemoController extends Controller
                 ->orWhere('vehicle_plate', 'like', "%{$search}%")))
             ->orderByDesc('created_at')
             ->limit(20)
-            ->get(['id', 'spk_number', 'customer_name', 'vehicle_brand', 'vehicle_plate', 'booking_id', 'checked_out_at']);
+            ->get(['id', 'spk_number', 'customer_name', 'vehicle_brand', 'vehicle_model', 'vehicle_variant', 'vehicle_year', 'vehicle_plate', 'booking_id', 'checked_out_at']);
 
         return response()->json(['success' => true, 'data' => $spks]);
     }
@@ -288,7 +288,7 @@ class MaterialMemoController extends Controller
                 ->orWhere('vehicle_plate', 'like', "%{$search}%")))
             ->orderByDesc('created_at')
             ->limit(20)
-            ->get(['id', 'booking_number', 'customer_name', 'vehicle_brand', 'vehicle_model', 'vehicle_plate', 'status']);
+            ->get(['id', 'booking_number', 'customer_name', 'vehicle_brand', 'vehicle_model', 'vehicle_variant', 'vehicle_year', 'vehicle_plate', 'status']);
 
         return response()->json(['success' => true, 'data' => $bookings]);
     }
@@ -354,10 +354,13 @@ class MaterialMemoController extends Controller
 
         $validator = Validator::make($request->all(), [
             'vehicle_info' => 'nullable|string|max:255',
-            // Installer/Installer Leader wajib mengisi merek, tipe, dan plat kendaraan yang akan dikerjakan.
-            'vehicle_brand' => [$user->canRequestMemo() ? 'required' : 'nullable', 'string', 'max:60'],
-            'vehicle_model' => [$user->canRequestMemo() ? 'required' : 'nullable', 'string', 'max:60'],
-            'vehicle_plate' => [$user->canRequestMemo() ? 'required' : 'nullable', 'string', 'max:20'],
+            // Installer/Installer Leader wajib mengisi merek, model, dan plat kendaraan yang akan dikerjakan (varian dan tahun opsional).
+            // Istilah dan batas sama dengan Booking dan SPK (VehicleFormat).
+            'vehicle_brand' => [$user->canRequestMemo() ? 'required' : 'nullable', 'string', 'max:' . \App\Support\VehicleFormat::MAX_BRAND],
+            'vehicle_model' => [$user->canRequestMemo() ? 'required' : 'nullable', 'string', 'max:' . \App\Support\VehicleFormat::MAX_MODEL],
+            'vehicle_variant' => 'nullable|string|max:' . \App\Support\VehicleFormat::MAX_VARIANT,
+            'vehicle_year' => 'nullable|' . \App\Support\VehicleFormat::yearRule(),
+            'vehicle_plate' => [$user->canRequestMemo() ? 'required' : 'nullable', 'string', 'max:' . \App\Support\VehicleFormat::MAX_PLATE],
             'spk_number' => 'nullable|string|max:100',
             'notes' => 'nullable|string|max:500',
             'request_note' => 'nullable|string|max:500',
@@ -407,6 +410,13 @@ class MaterialMemoController extends Controller
             $linked = $this->completeFromSpk($linked, $spkId, (int) $storeId);
         }
 
+        // Rombakan alur (Fase 0): bila diwajibkan, memo baru harus terikat ke booking (langsung atau lewat SPK-nya).
+        if (config('features.booking_required_for_spk_memo') && blank($linked['booking_id'] ?? null)) {
+            $message = 'Memo harus dibuat dari SPK atau booking. Pilih SPK yang terikat booking, atau buat booking dulu.';
+
+            return response()->json(['success' => false, 'message' => $message, 'errors' => ['spk_id' => [$message]]], 422);
+        }
+
         $attempts = 0;
         while (true) {
             $attempts++;
@@ -415,9 +425,11 @@ class MaterialMemoController extends Controller
                     return MaterialMemo::create([
                         'memo_number' => MaterialMemo::generateMemoNumber(),
                         'store_id' => $storeId,
-                        'vehicle_info' => MaterialMemo::composeVehicleInfo($request->vehicle_brand, $request->vehicle_model, MaterialMemo::normalizePlate($request->vehicle_plate)) ?? $request->vehicle_info,
+                        'vehicle_info' => MaterialMemo::composeVehicleInfo($request->vehicle_brand, $request->vehicle_model, MaterialMemo::normalizePlate($request->vehicle_plate), $request->vehicle_variant) ?? $request->vehicle_info,
                         'vehicle_brand' => $request->filled('vehicle_brand') ? trim($request->vehicle_brand) : null,
                         'vehicle_model' => $request->filled('vehicle_model') ? trim($request->vehicle_model) : null,
+                        'vehicle_variant' => $request->filled('vehicle_variant') ? trim($request->vehicle_variant) : null,
+                        'vehicle_year' => $request->filled('vehicle_year') ? (int) $request->vehicle_year : null,
                         'vehicle_plate' => MaterialMemo::normalizePlate($request->vehicle_plate),
                         'spk_number' => $linked['spk_number'],
                         'spk_id' => $spkId,
@@ -498,9 +510,11 @@ class MaterialMemoController extends Controller
 
         $validator = Validator::make($request->all(), [
             'vehicle_info' => 'nullable|string|max:255',
-            'vehicle_brand' => 'nullable|string|max:60',
-            'vehicle_model' => 'nullable|string|max:60',
-            'vehicle_plate' => 'nullable|string|max:20',
+            'vehicle_brand' => 'nullable|string|max:' . \App\Support\VehicleFormat::MAX_BRAND,
+            'vehicle_model' => 'nullable|string|max:' . \App\Support\VehicleFormat::MAX_MODEL,
+            'vehicle_variant' => 'nullable|string|max:' . \App\Support\VehicleFormat::MAX_VARIANT,
+            'vehicle_year' => 'nullable|' . \App\Support\VehicleFormat::yearRule(),
+            'vehicle_plate' => 'nullable|string|max:' . \App\Support\VehicleFormat::MAX_PLATE,
             'spk_number' => 'nullable|string|max:100',
             'notes' => 'nullable|string|max:500',
             'booking_id' => 'nullable|integer',
@@ -537,11 +551,12 @@ class MaterialMemoController extends Controller
         }
 
         // Bila kendaraan terstruktur ikut diubah, teks gabungannya menyusul.
-        if (array_key_exists('vehicle_brand', $data) || array_key_exists('vehicle_model', $data) || array_key_exists('vehicle_plate', $data)) {
+        if (array_key_exists('vehicle_brand', $data) || array_key_exists('vehicle_model', $data) || array_key_exists('vehicle_variant', $data) || array_key_exists('vehicle_plate', $data)) {
             $data['vehicle_info'] = MaterialMemo::composeVehicleInfo(
                 $data['vehicle_brand'] ?? $memo->vehicle_brand,
                 $data['vehicle_model'] ?? $memo->vehicle_model,
                 $data['vehicle_plate'] ?? $memo->vehicle_plate,
+                $data['vehicle_variant'] ?? $memo->vehicle_variant,
             ) ?? ($data['vehicle_info'] ?? $memo->vehicle_info);
         }
 

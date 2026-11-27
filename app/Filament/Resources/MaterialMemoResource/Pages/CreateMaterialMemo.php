@@ -52,6 +52,8 @@ class CreateMaterialMemo extends CreateRecord
             'store_id' => $booking->store_id,
             'vehicle_brand' => $booking->vehicle_brand,
             'vehicle_model' => $booking->vehicle_model,
+            'vehicle_variant' => $booking->vehicle_variant,
+            'vehicle_year' => $booking->vehicle_year,
             'vehicle_plate' => $booking->vehicle_plate,
         ]);
     }
@@ -82,6 +84,9 @@ class CreateMaterialMemo extends CreateRecord
             'spk_number' => $spk->spk_number,
             'store_id' => $spk->store_id,
             'vehicle_brand' => $spk->vehicle_brand,
+            'vehicle_model' => $spk->vehicle_model,
+            'vehicle_variant' => $spk->vehicle_variant,
+            'vehicle_year' => $spk->vehicle_year,
             'vehicle_plate' => $spk->vehicle_plate,
         ]);
     }
@@ -99,6 +104,18 @@ class CreateMaterialMemo extends CreateRecord
 
         // SPK yang dipilih melengkapi nomor SPK dan menautkan booking-nya (bila belum punya memo lain).
         $data = MaterialMemo::completeFromSpk($data);
+
+        // Rombakan alur (Fase 0): bila diwajibkan, memo baru harus terikat booking (langsung atau lewat SPK-nya).
+        if (config('features.booking_required_for_spk_memo') && blank($data['booking_id'] ?? null)) {
+            \Filament\Notifications\Notification::make()
+                ->title('Memo harus dibuat dari SPK atau booking')
+                ->body('Pilih SPK yang terikat booking, atau buat booking dulu.')
+                ->danger()
+                ->persistent()
+                ->send();
+
+            throw new \Filament\Support\Exceptions\Halt();
+        }
 
         // Non-akses-penuh: memo diajukan (setujui store manager, serahkan gudang); akses penuh tetap langsung.
         if (! auth()->user()?->isFullAccess()) {

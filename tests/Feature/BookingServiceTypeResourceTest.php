@@ -51,7 +51,7 @@ class BookingServiceTypeResourceTest extends TestCase
         $this->assertSame(['kaca_film', 'ppf', 'detailing', 'premium_wash'], $services->keys()->all());
         $this->assertSame('berat', $services['ppf']->capacity_category);
         $this->assertSame('ringan', $services['premium_wash']->capacity_category);
-        $this->assertSame(3, $services['ppf']->estimated_duration_days);
+        $this->assertSame(4, $services['ppf']->estimated_duration_days);
     }
 
     public function test_the_list_shows_status_capacity_badges_and_the_clean_ui_applies(): void
@@ -88,7 +88,7 @@ class BookingServiceTypeResourceTest extends TestCase
         $ppf = BookingServiceType::where('key', 'ppf')->firstOrFail();
 
         Livewire::test(EditBookingServiceType::class, ['record' => $ppf->getKey()])
-            ->fillForm(['label' => 'Paint Protection Film', 'description' => 'Pelindung cat premium.', 'estimated_duration_days' => 4, 'sort_order' => 9])
+            ->fillForm(['label' => 'Paint Protection Film', 'description' => 'Pelindung cat premium.', 'estimated_duration_days' => 5, 'sort_order' => 9])
             ->call('save')
             ->assertHasNoFormErrors();
 
@@ -97,7 +97,7 @@ class BookingServiceTypeResourceTest extends TestCase
         $catalog = collect($this->getJson('/api/booking/services')->assertOk()->json('data.services'))->keyBy('key');
         $this->assertSame('Paint Protection Film', $catalog['ppf']['label']);
         $this->assertSame('Pelindung cat premium.', $catalog['ppf']['description']);
-        $this->assertSame(4, $catalog['ppf']['estimated_duration_days']);
+        $this->assertSame(5, $catalog['ppf']['estimated_duration_days']);
         $this->assertSame('ppf', $catalog->keys()->last(), 'Urutan mengikuti sort_order.');
 
         $store = Store::first();

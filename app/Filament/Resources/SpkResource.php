@@ -212,6 +212,9 @@ class SpkResource extends Resource
 
                     Forms\Components\Select::make('booking_id')
                         ->label('Booking')
+                        // Rombakan alur (Fase 0): bila diwajibkan, SPK baru harus terikat booking. Pelanggan dan kendaraan mengikuti booking.
+                        ->required(fn (string $operation) => $operation === 'create' && (bool) config('features.booking_required_for_spk_memo'))
+                        ->helperText('Pelanggan dan kendaraan SPK mengikuti booking ini; koreksi dilakukan di booking.')
                         // BUG DIPERBAIKI 2026-09-25 (audit SPK): SEBELUMNYA
                         // field ini TIDAK PERNAH dikunci saat edit, beda
                         // dari store_id di atas yang sudah benar. Padahal
@@ -299,19 +302,33 @@ class SpkResource extends Resource
                 ->schema([
                     Forms\Components\TextInput::make('vehicle_plate')
                         ->label('No. Polisi')
-                        ->maxLength(20),
+                        ->maxLength(\App\Support\VehicleFormat::MAX_PLATE),
 
                     Forms\Components\TextInput::make('vehicle_vin')
                         ->label('No. Rangka')
                         ->maxLength(50),
 
+                    // Merek, Model, Varian, dan Tahun: istilah dan batas sama dengan Booking dan Memo (VehicleFormat).
                     Forms\Components\TextInput::make('vehicle_brand')
                         ->label('Merek')
-                        ->maxLength(100),
+                        ->placeholder('Mis. Toyota')
+                        ->maxLength(\App\Support\VehicleFormat::MAX_BRAND),
+
+                    Forms\Components\TextInput::make('vehicle_model')
+                        ->label('Model')
+                        ->placeholder('Mis. Fortuner')
+                        ->maxLength(\App\Support\VehicleFormat::MAX_MODEL),
+
+                    Forms\Components\TextInput::make('vehicle_variant')
+                        ->label('Varian')
+                        ->placeholder('Mis. VRZ')
+                        ->maxLength(\App\Support\VehicleFormat::MAX_VARIANT),
 
                     Forms\Components\TextInput::make('vehicle_year')
                         ->label('Tahun')
-                        ->maxLength(4),
+                        ->numeric()
+                        ->minValue(\App\Support\VehicleFormat::MIN_YEAR)
+                        ->maxValue(\App\Support\VehicleFormat::maxYear()),
 
                     Forms\Components\Select::make('vehicle_type')
                         ->label('Jenis')
@@ -386,6 +403,8 @@ class SpkResource extends Resource
                                     $entry::make('vehicle_plate')->label('No. Polisi')->placeholder('—'),
                                     $entry::make('vehicle_vin')->label('No. Rangka')->placeholder('—'),
                                     $entry::make('vehicle_brand')->label('Merek')->placeholder('—'),
+                                    $entry::make('vehicle_model')->label('Model')->placeholder('—'),
+                                    $entry::make('vehicle_variant')->label('Varian')->placeholder('—'),
                                     $entry::make('vehicle_year')->label('Tahun')->placeholder('—'),
                                     $entry::make('vehicle_type')->label('Jenis')->placeholder('—')->formatStateUsing(fn ($state) => Spk::VEHICLE_TYPE_LABELS[$state] ?? $state),
                                     $entry::make('vehicle_km')->label('Kilometer')->placeholder('—')->numeric(),

@@ -192,7 +192,7 @@ class CustomerVehicleAndBookingV2Test extends TestCase
         $this->assertSame('from', $all['ppf']['price']['type']);
         $this->assertSame('Mulai dari Rp5.000.000', $all['ppf']['price']['label']);
         $this->assertSame('unavailable', $all['kaca_film']['price']['type']);
-        $this->assertSame(3, $all['ppf']['estimated_duration_days']);
+        $this->assertSame(4, $all['ppf']['estimated_duration_days']);
         $this->assertSame(1, $all['premium_wash']['estimated_duration_days']);
         $this->assertSame('ringan', $all['detailing']['capacity_category']);
 
@@ -236,7 +236,7 @@ class CustomerVehicleAndBookingV2Test extends TestCase
         $this->assertSame('Hitam', $booking->vehicle_color);
         $this->assertSame(2022, $booking->vehicle_year);
         $this->assertSame('L', $booking->vehicle_size);
-        $this->assertSame(3, $booking->duration_days, 'PPF menentukan durasi bawaan 3 hari.');
+        $this->assertSame(4, $booking->duration_days, 'PPF menentukan perkiraan awal 4 hari.');
         $this->assertSame('pending', $booking->status);
     }
 
@@ -334,7 +334,10 @@ class CustomerVehicleAndBookingV2Test extends TestCase
         $spk = app(SpkService::class)->createFromBooking(Booking::findOrFail($id), null);
 
         $this->assertSame('B 1234 ABC', $spk->vehicle_plate);
-        $this->assertSame('Toyota Fortuner VRZ', $spk->vehicle_brand);
+        $this->assertSame('Toyota', $spk->vehicle_brand);
+        $this->assertSame('Fortuner', $spk->vehicle_model);
+        $this->assertSame('VRZ', $spk->vehicle_variant);
+        $this->assertSame('Toyota Fortuner VRZ', $spk->vehicle_name);
         $this->assertSame('2022', (string) $spk->vehicle_year);
         $this->assertSame(1, Spk::count());
     }

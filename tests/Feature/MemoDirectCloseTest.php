@@ -73,20 +73,21 @@ class MemoDirectCloseTest extends TestCase
         return $memo->fresh();
     }
 
-    public function test_only_the_creator_can_close_a_direct_memo_that_has_items(): void
+    public function test_full_access_closes_direct_memos_and_the_creator_of_a_legacy_direct_memo_still_can(): void
     {
         $empty = MaterialMemo::create(['memo_number' => 'MEMO-D-' . uniqid(), 'store_id' => $this->store->id, 'created_by' => $this->warehouse->id]);
         $memo = $this->directMemoWithItem();
         $director = $this->user('direksi', null, null);
 
         $this->assertFalse($this->service->canCloseDirect($this->warehouse, $empty), 'Memo tanpa barang tidak bisa ditutup.');
-        $this->assertTrue($this->service->canCloseDirect($this->warehouse, $memo));
-        $this->assertFalse($this->service->canCloseDirect($this->admin, $memo), 'Bukan pembuatnya.');
-        $this->assertFalse($this->service->canCloseDirect($director, $memo), 'Akses penuh tetap bebas mengubah memo langsungnya.');
+        $this->assertTrue($this->service->canCloseDirect($this->warehouse, $memo), 'Memo langsung lama: pembuatnya masih bisa menutup.');
+        $this->assertFalse($this->service->canCloseDirect($this->admin, $memo), 'Bukan pembuatnya dan bukan akses penuh.');
+        $this->assertTrue($this->service->canCloseDirect($director, $memo), 'Akses penuh bisa menutup memo langsung.');
 
         $adminMemo = MaterialMemo::create(['memo_number' => 'MEMO-D-' . uniqid(), 'store_id' => $this->store->id, 'created_by' => $director->id]);
         MaterialMemoStockService::addMaterial($this->material->fresh(), 'raw_material', $adminMemo, 1, $director->id, null);
-        $this->assertFalse($this->service->canCloseDirect($director, $adminMemo->fresh()));
+        $this->assertTrue($this->service->canCloseDirect($director, $adminMemo->fresh()), 'Memo langsung buatan akses penuh sendiri.');
+        $this->assertFalse($this->service->canCloseDirect($this->warehouse, $adminMemo->fresh()), 'Staf gudang bukan pembuatnya.');
     }
 
     public function test_closing_locks_the_memo_and_further_withdrawals_follow_the_addition_rules(): void
@@ -132,6 +133,7 @@ class MemoDirectCloseTest extends TestCase
 
         $this->actingAs($this->warehouse, 'api')->getJson("/api/staff/memos/{$memo->id}")->assertSuccessful()->assertJsonPath('can_close', true);
         $this->actingAs($this->admin, 'api')->getJson("/api/staff/memos/{$memo->id}")->assertSuccessful()->assertJsonPath('can_close', false);
+        $this->actingAs($this->user('direksi', null, null), 'api')->getJson("/api/staff/memos/{$memo->id}")->assertSuccessful()->assertJsonPath('can_close', true);
 
         $this->actingAs($this->admin, 'api')->postJson("/api/staff/memos/{$memo->id}/close")->assertStatus(422);
         $this->actingAs($this->warehouse, 'api')->postJson("/api/staff/memos/{$memo->id}/close")->assertSuccessful();

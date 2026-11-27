@@ -134,9 +134,54 @@ class SpkApiFlowTest extends TestCase
         $this->assertSame('0812999', $data['phone_number']);
         $this->assertSame('Jl. Mawar 5', $data['address']);
         $this->assertSame('B 1234 XYZ', $data['vehicle_plate']);
-        $this->assertSame('Toyota Fortuner VRZ', $data['vehicle_brand']);
+        $this->assertSame('Toyota', $data['vehicle_brand'], 'Merek hanya merek.');
+        $this->assertSame('Fortuner', $data['vehicle_model']);
+        $this->assertSame('VRZ', $data['vehicle_variant']);
         $this->assertEquals(2022, $data['vehicle_year']);
         $this->assertSame('Minta cepat selesai', $data['notes']);
+    }
+
+    public function test_the_mobile_form_gets_the_same_prefill_as_the_panel_with_the_ordered_work_items(): void
+    {
+        $booking = $this->booking([
+            'vehicle_plate' => 'B 1234 XYZ', 'vehicle_brand' => 'Toyota', 'vehicle_model' => 'Fortuner', 'vehicle_year' => 2022,
+            'notes' => 'Minta cepat selesai', 'product_kaca_film' => true,
+        ]);
+
+        $this->actingAs($this->staff('store_manager'), 'api')->getJson("/api/staff/spks/prefill-from-booking?booking_id={$booking->id}")
+            ->assertOk()
+            ->assertJsonPath('data.fields.vehicle_plate', 'B 1234 XYZ')
+            ->assertJsonPath('data.fields.vehicle_brand', 'Toyota')
+            ->assertJsonPath('data.fields.vehicle_model', 'Fortuner')
+            ->assertJsonPath('data.fields.notes', 'Minta cepat selesai')
+            ->assertJsonPath('data.work_items', ['PPF', 'Kaca Film']);
+    }
+
+    public function test_the_prefill_follows_the_same_access_rules_as_creating_the_spk(): void
+    {
+        $booking = $this->booking();
+        $installer = $this->staff('installer');
+
+        $this->actingAs($installer, 'api')->getJson("/api/staff/spks/prefill-from-booking?booking_id={$booking->id}")->assertForbidden();
+
+        $booking->installers()->attach($installer->id);
+        $this->actingAs($installer, 'api')->getJson("/api/staff/spks/prefill-from-booking?booking_id={$booking->id}")->assertOk();
+
+        $otherStoreManager = $this->staff('store_manager', $this->otherStore);
+        // Booking toko lain bahkan tidak ditemukan (cakupan toko pada model), jadi 404, bukan 403.
+        $this->actingAs($otherStoreManager, 'api')->getJson("/api/staff/spks/prefill-from-booking?booking_id={$booking->id}")->assertNotFound();
+        $this->actingAs($this->staff('store_manager'), 'api')->getJson('/api/staff/spks/prefill-from-booking?booking_id=999999')->assertNotFound();
+    }
+
+    public function test_a_booking_spk_without_a_sent_customer_name_takes_it_from_the_booking(): void
+    {
+        $booking = $this->booking(['customer_name' => 'Budi Santoso']);
+
+        $this->actingAs($this->staff('store_manager'), 'api')
+            ->postJson('/api/staff/spks', $this->payload($booking, ['customer_name' => '']))
+            ->assertStatus(201);
+
+        $this->assertSame('Budi Santoso', Spk::where('booking_id', $booking->id)->value('customer_name'));
     }
 
     public function test_pulling_from_a_sparse_booking_returns_only_what_exists(): void
@@ -224,7 +269,8 @@ class SpkApiFlowTest extends TestCase
         $booking = $this->booking();
         $kasir = $this->staff('store_manager');
 
-        $this->actingAs($kasir, 'api')->postJson('/api/staff/spks', $this->payload($booking, ['customer_name' => '']))->assertStatus(422);
+        // Nama pelanggan tetap wajib untuk SPK manual; SPK dari booking melengkapinya sendiri dari booking (tes terpisah).
+        $this->actingAs($kasir, 'api')->postJson('/api/staff/spks', $this->payload($booking, ['booking_id' => null, 'customer_name' => '']))->assertStatus(422);
         $this->actingAs($kasir, 'api')->postJson('/api/staff/spks', $this->payload($booking, ['vehicle_type' => 'truk']))->assertStatus(422);
         $this->actingAs($kasir, 'api')->postJson('/api/staff/spks', $this->payload($booking, [
             'damage_marks' => [['x_percent' => 120, 'y_percent' => 10, 'code' => 'B']],
@@ -400,11 +446,13 @@ class SpkApiFlowTest extends TestCase
         // Tanpa kunci damage_marks: titik kerusakan lama tetap ada.
         $this->actingAs($kasir, 'api')->putJson("/api/staff/spks/{$spk->id}", [
             'customer_name'   => 'Budi Revisi',
+            'address'         => 'Jl. Revisi 9',
             'checklist_items' => [['category' => 'pekerjaan', 'label' => 'Kaca Film', 'is_checked' => true]],
         ])->assertSuccessful();
 
         $fresh = $spk->fresh(['checklistItems', 'damageMarks']);
-        $this->assertSame('Budi Revisi', $fresh->customer_name);
+        $this->assertSame('Jl. Revisi 9', $fresh->address, 'Alamat milik SPK, bisa diubah.');
+        $this->assertSame('Budi', $fresh->customer_name, 'Nama pelanggan dibaca dari booking, bukan dari isian SPK.');
         $this->assertCount(1, $fresh->checklistItems);
         $this->assertSame('Kaca Film', $fresh->checklistItems->first()->label);
         $this->assertCount(1, $fresh->damageMarks);

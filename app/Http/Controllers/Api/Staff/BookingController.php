@@ -374,6 +374,242 @@ class BookingController extends Controller
         ]);
     }
 
+    /** Hanya staf toko yang punya menu Booking boleh membuat booking; installer dan partner tidak. */
+    private function assertCanCreateBooking(User $user): void
+    {
+        abort_unless($user->canAccessStaffArea() && $user->hasBookingAccess() && ! $user->hasRole('partner') && ! $this->isInstallerOnly($user), 403, 'Akun ini tidak bisa membuat booking.');
+    }
+
+    /**
+     * GET /api/staff/bookings/film-product-options?services[]=ppf&ppf_exterior=1&ppf_interior=0&ppf_scope=partial
+     * Bagian kendaraan yang boleh diberi produk (sama dengan "Produk per Bagian" di panel, lewat BookingResource::partOptions) dan daftar
+     * produk aktif per jenisnya, untuk form Buat Booking di aplikasi. Bagian bergantung pada layanan, cakupan PPF, dan Eksterior/Interior.
+     */
+    public function filmProductOptions(Request $request)
+    {
+        $this->assertCanCreateBooking($request->user('api'));
+
+        $serviceKeys = array_keys(\App\Models\BookingServiceType::FLAGS);
+        $services = array_values(array_intersect((array) $request->query('services', []), $serviceKeys));
+        $wantsPpf = in_array('ppf', $services, true);
+        $interior = $wantsPpf && $request->boolean('ppf_interior');
+        $exterior = $wantsPpf && ($request->boolean('ppf_exterior') || ! $interior);
+        $scope = $exterior ? $request->query('ppf_scope') : null;
+
+        $parts = [];
+        foreach (\App\Filament\Resources\BookingResource::partOptions($services, $scope, $exterior, $interior) as $group => $labels) {
+            foreach (array_values($labels) as $label) {
+                $parts[] = ['position' => $label, 'group' => $group, 'product_type' => \App\Filament\Resources\BookingResource::productTypeForPart($label)];
+            }
+        }
+
+        $products = \App\Models\FilmProduct::query()->where('is_active', true)->orderBy('name')->get(['id', 'sku', 'name', 'product_type'])
+            ->groupBy('product_type')
+            ->map(fn ($rows) => $rows->map(fn ($p) => ['id' => $p->id, 'label' => "{$p->sku} — {$p->name}"])->values());
+
+        return response()->json(['success' => true, 'data' => ['parts' => $parts, 'products' => (object) $products->all()]]);
+    }
+
+    /**
+     * POST /api/staff/bookings
+     * Staf membuat booking untuk pelanggan yang datang atau menghubungi langsung (walk-in atau WhatsApp), tanpa akun aplikasi
+     * (2026-11-27, permintaan pemilik; sebelumnya hanya lewat panel). Aturannya sama dengan panel (CreateBooking) dan jalur pelanggan: tanggal
+     * tidak boleh lampau, toko harus buka, dan bila langsung dikonfirmasi kapasitas (layanan berat) atau slot jam (layanan ringan) dicek di
+     * bawah kunci toko. Pelanggan tidak ditautkan ke akun (sama seperti booking manual di panel). Produk per bagian diisi kemudian di panel.
+     *
+     * Body: source (walk_in|whatsapp), customer_name, phone_number, services[], ppf_exterior/ppf_interior/ppf_scope (bila PPF), preferred_date,
+     * preferred_time (wajib untuk layanan ringan yang langsung dikonfirmasi), kendaraan (opsional), notes, confirm (bawaan true), store_id (akses penuh).
+     */
+    public function store(Request $request)
+    {
+        $user = $request->user('api');
+
+        $this->assertCanCreateBooking($user);
+
+        $serviceKeys = array_keys(\App\Models\BookingServiceType::FLAGS);
+
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+            'source' => 'required|in:walk_in,whatsapp',
+            'store_id' => [$user->isFullAccess() ? 'required' : 'nullable', 'exists:stores,id,is_active,1'],
+            'customer_name' => 'required|string|max:255',
+            'phone_number' => 'required|string|max:50',
+            'services' => 'required|array|min:1|max:' . count($serviceKeys),
+            'services.*' => 'required|string|distinct|in:' . implode(',', $serviceKeys),
+            'ppf_exterior' => 'sometimes|boolean',
+            'ppf_interior' => 'sometimes|boolean',
+            'ppf_scope' => 'nullable|in:' . Booking::PPF_SCOPE_FULL_BODY . ',' . Booking::PPF_SCOPE_PARTIAL,
+            'preferred_date' => 'required|date|after_or_equal:today',
+            'preferred_time' => 'nullable|string|max:50',
+            'notes' => 'nullable|string|max:2000',
+            'confirm' => 'sometimes|boolean',
+            // Produk per bagian (opsional), sama dengan "Produk per Bagian" di panel. Produk pertama menjadi produk utama booking.
+            'film_products' => 'sometimes|array|max:20',
+            'film_products.*.position' => 'required|string|max:120',
+            'film_products.*.film_product_id' => 'required|integer',
+            // Kendaraan: opsional, istilah dan batas sama dengan SPK dan Memo (VehicleFormat).
+            'vehicle_plate' => 'nullable|string|max:' . \App\Support\VehicleFormat::MAX_PLATE,
+            'vehicle_brand' => 'nullable|string|max:' . \App\Support\VehicleFormat::MAX_BRAND,
+            'vehicle_model' => 'nullable|string|max:' . \App\Support\VehicleFormat::MAX_MODEL,
+            'vehicle_variant' => 'nullable|string|max:' . \App\Support\VehicleFormat::MAX_VARIANT,
+            'vehicle_color' => 'nullable|string|max:40',
+            'vehicle_year' => 'nullable|' . \App\Support\VehicleFormat::yearRule(),
+            'vehicle_size' => 'nullable|in:' . implode(',', \App\Models\CustomerVehicle::SIZES),
+            'vehicle_power' => 'nullable|' . \App\Support\VehicleFormat::powerRule(),
+        ]);
+
+        $validator->after(function ($v) use ($request) {
+            $plate = $request->input('vehicle_plate');
+
+            if (filled($plate) && ! \App\Models\CustomerVehicle::isValidPlate(\App\Models\CustomerVehicle::normalizePlate((string) $plate))) {
+                $v->errors()->add('vehicle_plate', 'Format plat nomor tidak valid. Contoh: B 1234 ABC.');
+            }
+        });
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'message' => 'Data yang dikirim tidak valid.', 'errors' => $validator->errors()], 422);
+        }
+
+        $storeId = $user->isFullAccess() ? (int) $request->input('store_id') : (int) $user->store_id;
+        $store = $storeId ? \App\Models\Store::find($storeId) : null;
+
+        if (! $store) {
+            return response()->json(['success' => false, 'message' => 'Akun ini tidak terikat ke toko, jadi booking tidak bisa dibuat.'], 422);
+        }
+
+        $date = Carbon::parse($request->input('preferred_date'))->startOfDay();
+
+        if ($store->isClosedOn($date)) {
+            return response()->json(['success' => false, 'message' => 'Toko tutup di tanggal itu (libur mingguan atau tanggal diblokir). Pilih tanggal lain.', 'errors' => ['preferred_date' => ['Toko tutup.']]], 422);
+        }
+
+        // Layanan: urutan tetap supaya service_type konsisten. PPF Full Body (Eksterior) otomatis menyertakan Detailing dan Premium Wash, seperti di panel.
+        $selected = collect($serviceKeys)->filter(fn (string $key) => in_array($key, $request->input('services'), true))->values();
+        $wantsPpf = $selected->contains('ppf');
+        $exterior = $wantsPpf && ($request->boolean('ppf_exterior') || ! $request->boolean('ppf_interior'));
+        $interior = $wantsPpf && $request->boolean('ppf_interior');
+        $scope = $wantsPpf && $exterior ? $request->input('ppf_scope') : null;
+
+        if ($scope === Booking::PPF_SCOPE_FULL_BODY) {
+            $selected = collect($serviceKeys)->filter(fn (string $key) => $selected->contains($key) || in_array($key, ['detailing', 'premium_wash'], true))->values();
+        }
+
+        $flags = [];
+        foreach (\App\Models\BookingServiceType::FLAGS as $key => $column) {
+            $flags[$column] = $selected->contains($key);
+        }
+        $flags['ppf_exterior'] = $exterior;
+        $flags['ppf_interior'] = $interior;
+
+        // Produk per bagian: bagian harus sesuai layanan yang dipilih, tidak dobel, dan produknya aktif dan sejenis dengan bagiannya.
+        $filmRows = collect($request->input('film_products', []))->values();
+
+        if ($filmRows->isNotEmpty()) {
+            $allowed = collect(\App\Filament\Resources\BookingResource::partOptions($request->input('services'), $scope, $exterior, $interior))->flatten()->all();
+
+            if ($filmRows->pluck('position')->duplicates()->isNotEmpty()) {
+                return response()->json(['success' => false, 'message' => 'Satu bagian hanya boleh punya satu produk.', 'errors' => ['film_products' => ['Bagian dobel.']]], 422);
+            }
+
+            $products = \App\Models\FilmProduct::whereIn('id', $filmRows->pluck('film_product_id'))->where('is_active', true)->get()->keyBy('id');
+
+            foreach ($filmRows as $row) {
+                $product = $products->get((int) $row['film_product_id']);
+
+                if (! in_array($row['position'], $allowed, true)) {
+                    return response()->json(['success' => false, 'message' => 'Bagian "' . $row['position'] . '" tidak sesuai dengan layanan yang dipilih.', 'errors' => ['film_products' => ['Bagian tidak sesuai.']]], 422);
+                }
+
+                if (! $product) {
+                    return response()->json(['success' => false, 'message' => 'Produk tidak ditemukan atau sudah nonaktif.', 'errors' => ['film_products' => ['Produk tidak valid.']]], 422);
+                }
+
+                if ($product->product_type !== \App\Filament\Resources\BookingResource::productTypeForPart($row['position'])) {
+                    return response()->json(['success' => false, 'message' => 'Produk ' . $product->name . ' bukan untuk bagian "' . $row['position'] . '".', 'errors' => ['film_products' => ['Jenis produk tidak cocok.']]], 422);
+                }
+            }
+        }
+
+        $serviceType = $selected->map(fn (string $key) => \App\Models\BookingServiceType::labelFor($key))->implode(', ');
+        $lightOnly = Booking::flagsAreLightOnly($flags);
+        $confirm = $request->boolean('confirm', true);
+
+        // Booking yang sama (nomor telepon, toko, tanggal, layanan) yang masih aktif tidak dibuat dua kali.
+        $duplicate = Booking::where('phone_number', $request->input('phone_number'))
+            ->where('store_id', $storeId)
+            ->whereDate('preferred_date', $date->toDateString())
+            ->where('service_type', $serviceType)
+            ->whereIn('status', ['pending', 'confirmed'])
+            ->first();
+
+        if ($duplicate) {
+            return response()->json(['success' => false, 'message' => "Booking yang sama (#{$duplicate->booking_number}) sudah ada di toko dan tanggal ini."], 422);
+        }
+
+        $attributes = [
+            'source' => $request->input('source'),
+            'status' => $confirm ? 'confirmed' : 'pending',
+            'customer_name' => trim($request->input('customer_name')),
+            'phone_number' => trim($request->input('phone_number')),
+            'store_id' => $storeId,
+            'service_type' => $serviceType,
+            'preferred_date' => $date->toDateString(),
+            'preferred_time' => $request->input('preferred_time'),
+            'ppf_scope' => $scope,
+            'notes' => $request->input('notes'),
+            'vehicle_plate' => filled($request->input('vehicle_plate'))
+                ? \App\Models\CustomerVehicle::formatPlate(\App\Models\CustomerVehicle::normalizePlate((string) $request->input('vehicle_plate')))
+                : null,
+            'vehicle_brand' => $request->input('vehicle_brand'),
+            'vehicle_model' => $request->input('vehicle_model'),
+            'vehicle_variant' => $request->input('vehicle_variant'),
+            'vehicle_color' => $request->input('vehicle_color'),
+            'vehicle_year' => $request->input('vehicle_year'),
+            'vehicle_size' => $request->input('vehicle_size'),
+            'vehicle_power' => $request->input('vehicle_power'),
+        ] + $flags;
+
+        $booking = DB::transaction(function () use ($attributes, $confirm, $lightOnly, $storeId, $date, $request, $filmRows) {
+            if ($confirm) {
+                // Langsung dikonfirmasi: kapasitas atau slot jam dicek di bawah kunci toko, sama dengan panel dan konfirmasi di aplikasi.
+                if ($lightOnly) {
+                    $problem = Booking::lightSlotProblem($storeId, $date, $request->input('preferred_time'), null, true, true);
+
+                    if ($problem) {
+                        abort(response()->json(['success' => false, 'message' => $problem, 'errors' => ['preferred_time' => [$problem]]], 422));
+                    }
+                } else {
+                    $durationDays = Booking::defaultDurationDays((bool) $attributes['product_ppf'], (bool) $attributes['ppf_exterior'], (bool) $attributes['ppf_interior']);
+                    $full = Booking::fullDatesInRangeLocked($storeId, $date, $durationDays);
+
+                    if (! empty($full)) {
+                        abort(response()->json([
+                            'success' => false,
+                            'message' => 'Kapasitas toko penuh di tanggal: ' . implode(', ', $full) . '. Pilih tanggal lain, atau simpan sebagai belum dikonfirmasi.',
+                            'errors' => ['preferred_date' => ['Tanggal penuh.']],
+                        ], 422));
+                    }
+                }
+            }
+
+            $created = Booking::create($attributes);
+
+            foreach ($filmRows as $row) {
+                $created->filmProducts()->create(['position' => $row['position'], 'film_product_id' => (int) $row['film_product_id']]);
+            }
+
+            // Produk pertama menjadi produk utama booking (laporan, Memo Barang, penjualan), sama dengan panel.
+            \App\Filament\Resources\BookingResource::syncMainProduct($created);
+
+            return $created;
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => $confirm ? 'Booking dibuat dan dikonfirmasi.' : 'Booking dibuat, menunggu konfirmasi.',
+            'data' => ['id' => $booking->id, 'booking_number' => $booking->booking_number, 'status' => $booking->status],
+        ], 201);
+    }
+
     /**
      * POST /api/staff/bookings/{id}/confirm
      *

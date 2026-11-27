@@ -200,6 +200,8 @@ Route::prefix('customer')->group(function () {
 
         // 我的预约 — Booking Saya
         Route::get('/bookings', [BookingController::class, 'index']);
+        // SPK booking milik sendiri, hanya baca (2026-11-27).
+        Route::get('/bookings/{id}/spk', [BookingController::class, 'spk']);
         // Pakai limiter custom 'customer-booking-submit' (didaftarkan di
         // AppServiceProvider::boot()), BUKAN throttle:10,1 bawaan --
         // throttle:10,1 key berdasarkan guard DEFAULT ('api'/staff), yang
@@ -304,6 +306,10 @@ Route::prefix('staff')->group(function () {
         // route ke show(). Lihat catatan lengkap di
         // StaffBookingController::capacityOverview().
         Route::get('/bookings/capacity-overview', [StaffBookingController::class, 'capacityOverview']);
+        // Staf membuat booking untuk pelanggan walk-in atau WhatsApp (2026-11-27).
+        // Bagian kendaraan dan produk yang bisa dipilih di form Buat Booking. Sebelum /bookings/{id}.
+        Route::get('/bookings/film-product-options', [StaffBookingController::class, 'filmProductOptions']);
+        Route::post('/bookings', [StaffBookingController::class, 'store'])->middleware('throttle:20,1');
         Route::get('/bookings/{id}', [StaffBookingController::class, 'show']);
         // Approve booking pending -> confirmed langsung dari app (Store
         // Manager/Direksi/Super Admin) — dicek kapasitas slot instalasi
@@ -380,6 +386,8 @@ Route::prefix('staff')->group(function () {
         Route::get('/spks', [StaffSpkController::class, 'index']);
         Route::get('/spks/checklist-template', [StaffSpkController::class, 'checklistTemplate']);
         Route::get('/spks/assignable-installers', [StaffSpkController::class, 'assignableInstallers']);
+        // Isian awal form SPK dari booking (sama dengan panel), 2026-11-27. Didaftarkan sebelum /spks/{id}.
+        Route::get('/spks/prefill-from-booking', [StaffSpkController::class, 'prefillFromBooking']);
         Route::get('/spks/{id}', [StaffSpkController::class, 'show']);
         Route::post('/spks', [StaffSpkController::class, 'store'])
             ->middleware('throttle:20,1');
@@ -388,6 +396,9 @@ Route::prefix('staff')->group(function () {
         // Halaman "Kondisi Kendaraan" tersendiri (diminta user 2026-09-16) --
         // cuma simpan damage_marks, tidak butuh field SPK lain.
         Route::put('/spks/{id}/damage-marks', [StaffSpkController::class, 'updateDamageMarks'])
+            ->middleware('throttle:20,1');
+        // Atur lama pengerjaan booking setelah SPK (2026-11-27): installer, staf toko, dan akses penuh yang memegang SPK-nya.
+        Route::put('/spks/{id}/duration', [StaffSpkController::class, 'updateDuration'])
             ->middleware('throttle:20,1');
 
         // Link anonymous token (didaftarkan saat app pertama kali dibuka)

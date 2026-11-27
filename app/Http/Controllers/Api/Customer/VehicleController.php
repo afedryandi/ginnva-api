@@ -101,6 +101,7 @@ class VehicleController extends Controller
             'year' => 'nullable|integer|between:1980,' . (now()->year + 1),
             'color' => 'nullable|string|max:40',
             'size_category' => 'nullable|in:' . implode(',', CustomerVehicle::SIZES),
+            'vehicle_power' => 'nullable|' . \App\Support\VehicleFormat::powerRule(),
             'vin' => 'nullable|string|max:25',
             'is_default' => 'sometimes|boolean',
         ], [
@@ -128,6 +129,7 @@ class VehicleController extends Controller
             'color' => $request->filled('color') ? trim((string) $request->input('color')) : null,
             // Ukuran dari katalog kalau ada; kalau diketik manual boleh diisi pelanggan atau kosong (toko yang menentukan).
             'size_category' => $catalog?->size_category ?? ($request->filled('size_category') ? $request->input('size_category') : null),
+            'vehicle_power' => $request->filled('vehicle_power') ? $request->input('vehicle_power') : null,
             'vin' => $request->filled('vin') ? strtoupper(trim((string) $request->input('vin'))) : null,
         ];
     }
@@ -160,6 +162,7 @@ class VehicleController extends Controller
             'year' => $vehicle->year,
             'color' => $vehicle->color,
             'size_category' => $vehicle->size_category,
+            'vehicle_power' => $vehicle->vehicle_power,
             'vin' => $vehicle->vin,
             'is_default' => $vehicle->is_default,
         ];

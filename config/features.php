@@ -131,6 +131,10 @@ return [
     // Tautan Memo Barang ke Booking: mati dulu (2026-11-17), kolom booking di form, daftar, dan filter memo disembunyikan. Data dan kode tetap ada;
     // isi FEATURE_MEMO_BOOKING_LINK=true untuk menampilkannya lagi.
     'memo_booking_link' => (bool) env('FEATURE_MEMO_BOOKING_LINK', false),
+    // SPK dan Memo baru WAJIB terikat ke booking (rombakan alur Booking, SPK, Memo, Fase 0, keputusan pemilik 2026-11-27): SPK harus dibuat dari booking,
+    // memo harus dibuat dari SPK atau booking. Mati bawaan sampai aplikasi staf dengan alur barunya beredar, supaya aplikasi lama tidak terkunci; isi
+    // FEATURE_BOOKING_REQUIRED_FOR_SPK_MEMO=true setelah build baru dirilis. Data lama dibiarkan.
+    'booking_required_for_spk_memo' => (bool) env('FEATURE_BOOKING_REQUIRED_FOR_SPK_MEMO', false),
     // Koordinat GPS wajib saat foto di lokasi dinas luar dikirim dari aplikasi (keputusan pemilik 2026-12-18). Mati bawaan sampai aplikasi
     // dengan pembaca lokasi beredar, supaya versi lama tidak terkunci; isi FEATURE_FIELD_DUTY_COORDS_REQUIRED=true setelah build baru dirilis.
     // SPK wajib saat "Catat Pemakaian" roll dari aplikasi staf (keputusan pemilik 2026-12-20): pilih dari daftar atau ketik nomornya. Mati bawaan sampai

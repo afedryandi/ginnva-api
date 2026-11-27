@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\HasStoreScope;
+use App\Support\VehicleFormat;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -50,6 +51,8 @@ class MaterialMemo extends Model
         'vehicle_info',
         'vehicle_brand',
         'vehicle_model',
+        'vehicle_variant',
+        'vehicle_year',
         'vehicle_plate',
         'spk_number',
         'notes',
@@ -65,6 +68,7 @@ class MaterialMemo extends Model
         'approved_at' => 'datetime',
         'rejected_at' => 'datetime',
         'fulfilled_at' => 'datetime',
+        'vehicle_year' => 'integer',
     ];
 
     public const FLOW_DIRECT = 'direct';
@@ -90,24 +94,31 @@ class MaterialMemo extends Model
     {
         // Teks gabungan kendaraan selalu mengikuti isian merek/tipe/plat (panel, API, dan prefill booking sama-sama lewat sini).
         static::saving(function (self $memo) {
-            if ($memo->isDirty(['vehicle_brand', 'vehicle_model', 'vehicle_plate'])) {
-                $memo->vehicle_info = self::composeVehicleInfo($memo->vehicle_brand, $memo->vehicle_model, $memo->vehicle_plate) ?? $memo->vehicle_info;
+            // Kendaraan dibaca dari booking (langsung, atau lewat SPK-nya): nilai dari booking menimpa isian (BookingMirror).
+            \App\Services\BookingMirror::applyToMemo($memo);
+
+            if ($memo->isDirty(['vehicle_brand', 'vehicle_model', 'vehicle_variant', 'vehicle_plate'])) {
+                $memo->vehicle_info = self::composeVehicleInfo($memo->vehicle_brand, $memo->vehicle_model, $memo->vehicle_plate, $memo->vehicle_variant) ?? $memo->vehicle_info;
             }
         });
     }
 
-    /** Plat dibakukan: huruf besar, spasi tunggal ("b 1234 xyz" menjadi "B 1234 XYZ"). */
-    public static function normalizePlate(?string $plate): ?string
+    /** Plat dirapikan saat disimpan lewat jalur mana pun (panel, API, kode), sama dengan Booking dan SPK. */
+    public function setVehiclePlateAttribute(?string $value): void
     {
-        $plate = trim(preg_replace('/\s+/', ' ', (string) $plate));
-
-        return $plate === '' ? null : mb_strtoupper($plate);
+        $this->attributes['vehicle_plate'] = VehicleFormat::normalizePlate($value);
     }
 
-    /** Teks gabungan untuk tampilan dan pencarian, sama bentuknya dengan isian otomatis dari booking: "Toyota Avanza - B 1234 XYZ". */
-    public static function composeVehicleInfo(?string $brand, ?string $model, ?string $plate): ?string
+    /** Plat dibakukan: huruf besar, spasi tunggal ("b 1234 xyz" menjadi "B 1234 XYZ"). Aturannya satu untuk Booking, SPK, dan Memo (VehicleFormat). */
+    public static function normalizePlate(?string $plate): ?string
     {
-        $vehicle = trim(implode(' ', array_filter([trim((string) $brand), trim((string) $model)])));
+        return VehicleFormat::normalizePlate($plate);
+    }
+
+    /** Teks gabungan untuk tampilan dan pencarian, sama bentuknya dengan isian otomatis dari booking: "Toyota Avanza 1.5 G - B 1234 XYZ". */
+    public static function composeVehicleInfo(?string $brand, ?string $model, ?string $plate, ?string $variant = null): ?string
+    {
+        $vehicle = VehicleFormat::name($brand, $model, $variant);
         $info = trim($vehicle . ($plate ? ($vehicle !== '' ? ' - ' : '') . $plate : ''));
 
         return $info !== '' ? $info : null;
@@ -254,7 +265,7 @@ class MaterialMemo extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['memo_number', 'store_id', 'booking_id', 'spk_id', 'vehicle_info', 'vehicle_brand', 'vehicle_model', 'vehicle_plate', 'spk_number', 'notes'])
+            ->logOnly(['memo_number', 'store_id', 'booking_id', 'spk_id', 'vehicle_info', 'vehicle_brand', 'vehicle_model', 'vehicle_variant', 'vehicle_year', 'vehicle_plate', 'spk_number', 'notes'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs();
     }

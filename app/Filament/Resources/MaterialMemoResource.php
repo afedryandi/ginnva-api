@@ -166,10 +166,14 @@ class MaterialMemoResource extends Resource
                         . ($record !== null && $record->items()->exists()
                             ? ' Perhatian: mengganti booking memindahkan seluruh biaya bahan di memo ini ke booking yang baru (perubahannya tercatat di riwayat).'
                             : '')),
+                // Istilah dan batas yang sama dengan Booking dan SPK (VehicleFormat): Merek, Model, Varian, Tahun, Plat Nomor.
                 Forms\Components\Grid::make(3)->schema([
-                    Forms\Components\TextInput::make('vehicle_brand')->label('Merek Kendaraan')->placeholder('Mis. Toyota')->maxLength(60),
-                    Forms\Components\TextInput::make('vehicle_model')->label('Tipe Kendaraan')->placeholder('Mis. Avanza')->maxLength(60),
-                    Forms\Components\TextInput::make('vehicle_plate')->label('Plat Nomor')->placeholder('Mis. B 1234 XYZ')->maxLength(20)
+                    Forms\Components\TextInput::make('vehicle_brand')->label('Merek')->placeholder('Mis. Toyota')->maxLength(\App\Support\VehicleFormat::MAX_BRAND),
+                    Forms\Components\TextInput::make('vehicle_model')->label('Model')->placeholder('Mis. Avanza')->maxLength(\App\Support\VehicleFormat::MAX_MODEL),
+                    Forms\Components\TextInput::make('vehicle_variant')->label('Varian')->placeholder('Mis. 1.5 G')->maxLength(\App\Support\VehicleFormat::MAX_VARIANT),
+                    Forms\Components\TextInput::make('vehicle_year')->label('Tahun')->placeholder('Mis. 2022')->numeric()
+                        ->minValue(\App\Support\VehicleFormat::MIN_YEAR)->maxValue(\App\Support\VehicleFormat::maxYear()),
+                    Forms\Components\TextInput::make('vehicle_plate')->label('Plat Nomor')->placeholder('Mis. B 1234 XYZ')->maxLength(\App\Support\VehicleFormat::MAX_PLATE)
                         ->dehydrateStateUsing(fn (?string $state) => MaterialMemo::normalizePlate($state)),
                 ]),
                 // Memo dibuat dari SPK (alur Booking -> SPK -> Memo): pilih SPK untuk menautkan (cari nomor atau nama pelanggan), atau ketik
@@ -197,8 +201,10 @@ class MaterialMemoResource extends Resource
                         if (filled($spk->vehicle_plate)) {
                             $set('vehicle_plate', $spk->vehicle_plate);
                         }
-                        if (filled($spk->vehicle_brand)) {
-                            $set('vehicle_brand', $spk->vehicle_brand);
+                        foreach (['vehicle_brand', 'vehicle_model', 'vehicle_variant', 'vehicle_year'] as $field) {
+                            if (filled($spk->{$field})) {
+                                $set($field, $spk->{$field});
+                            }
                         }
                         if ($isSuperAdmin && $spk->store_id) {
                             $set('store_id', $spk->store_id);

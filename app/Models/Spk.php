@@ -95,6 +95,8 @@ class Spk extends Model
         'vehicle_plate',
         'vehicle_vin',
         'vehicle_brand',
+        'vehicle_model',
+        'vehicle_variant',
         'vehicle_year',
         'vehicle_type',
         'vehicle_km',
@@ -111,6 +113,24 @@ class Spk extends Model
         'checked_out_at' => 'datetime',
         'vehicle_km' => 'integer',
     ];
+
+    /** Plat dirapikan saat disimpan (huruf besar, spasi tunggal), sama dengan Booking dan Memo (VehicleFormat). */
+    public function setVehiclePlateAttribute(?string $value): void
+    {
+        $this->attributes['vehicle_plate'] = \App\Support\VehicleFormat::normalizePlate($value);
+    }
+
+    /** "Toyota Avanza 1.5 G": merek, model, dan varian untuk tampilan. SPK lama menyimpan semuanya di kolom merek, jadi tetap tampil utuh. */
+    public function getVehicleNameAttribute(): string
+    {
+        return \App\Support\VehicleFormat::name($this->vehicle_brand, $this->vehicle_model, $this->vehicle_variant);
+    }
+
+    protected static function booted(): void
+    {
+        // Pelanggan dan kendaraan dibaca dari booking (BookingMirror): nilai dari booking menimpa isian yang dikirim.
+        static::saving(fn (self $spk) => \App\Services\BookingMirror::applyToSpk($spk));
+    }
 
     public function store(): BelongsTo
     {

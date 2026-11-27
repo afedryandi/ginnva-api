@@ -294,6 +294,8 @@ class AuthController extends Controller
             'can_delete_memo' => $user->isFullAccess(),
             // Membuat SPK baru hanya leader installer dan atasannya (sama dengan gate server di SpkController::store()).
             'can_create_spk'       => $user->canCreateSpk(),
+            // Tombol Buat Booking (walk-in atau WhatsApp): staf toko dengan menu Booking; installer dan partner tidak.
+            'can_create_booking'   => $user->canAccessStaffArea() && $user->hasBookingAccess() && ! $user->hasRole('partner') && $user->primaryRoleName() !== 'installer',
             'has_spk_access'       => $user->hasSpkAccess(),
             'has_quotation_access' => $user->hasQuotationAccess(),
             // Layar Jadwal Kerja di aplikasi hanya untuk yang benar-benar punya jadwal, dan hanya bila fitur dinyalakan (config/features.php).

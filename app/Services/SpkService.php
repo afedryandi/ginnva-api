@@ -112,14 +112,15 @@ class SpkService
     {
         $booking->loadMissing(['customer', 'customerVehicle']);
 
-        $brandModel = trim(implode(' ', array_filter([$booking->vehicle_brand, $booking->vehicle_model, $booking->vehicle_variant])));
-
         $data = [
             'customer_name' => $booking->customer_name ?: $booking->customer?->name,
             'phone_number' => $booking->phone_number ?: $booking->customer?->phone_number,
             'address' => $booking->customer?->address,
             'vehicle_plate' => $booking->vehicle_plate ?: $booking->customerVehicle?->plate,
-            'vehicle_brand' => $brandModel !== '' ? $brandModel : null,
+            // Merek, model, dan varian terpisah seperti di booking (dulu digabung ke kolom merek; penyeragaman 2026-11-27).
+            'vehicle_brand' => $booking->vehicle_brand ?: $booking->customerVehicle?->brand,
+            'vehicle_model' => $booking->vehicle_model ?: $booking->customerVehicle?->model,
+            'vehicle_variant' => $booking->vehicle_variant ?: $booking->customerVehicle?->variant,
             'vehicle_year' => $booking->vehicle_year ?: $booking->customerVehicle?->year,
             'vehicle_vin' => $booking->customerVehicle?->vin,
             'notes' => $booking->notes,
@@ -309,7 +310,9 @@ class SpkService
             'phone_number' => $booking->phone_number ?? $booking->customer?->phone_number,
             // Data kendaraan dari booking (Fase 1 pengerjaan ulang booking, 2026-10-15) supaya tidak diketik ulang.
             'vehicle_plate' => $booking->vehicle_plate,
-            'vehicle_brand' => trim(implode(' ', array_filter([$booking->vehicle_brand, $booking->vehicle_model, $booking->vehicle_variant]))) ?: null,
+            'vehicle_brand' => $booking->vehicle_brand,
+            'vehicle_model' => $booking->vehicle_model,
+            'vehicle_variant' => $booking->vehicle_variant,
             'vehicle_year' => $booking->vehicle_year ? (string) $booking->vehicle_year : null,
             'checked_in_at' => now(),
         ], $checklist, $createdBy);

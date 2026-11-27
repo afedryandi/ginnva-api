@@ -150,8 +150,8 @@ class Booking extends Model
     }
 
     /**
-     * Lama pengerjaan bawaan (hari): PPF Eksterior 3 hari, Interior saja 1 hari; Eksterior dan Interior sekaligus tetap 3 hari (Interior tidak
-     * menambah hari kerja, 2026-11-24); selain PPF 1 hari. Yang belum menentukan area dihitung Eksterior. Staf tetap bisa mengubah angkanya.
+     * Lama pengerjaan bawaan (hari): PPF Eksterior 4 hari (perkiraan awal, diatur ulang setelah SPK), Interior saja 1 hari; Eksterior dan Interior
+     * sekaligus mengikuti Eksterior (Interior tidak menambah hari kerja, 2026-11-24); selain PPF 1 hari. Yang belum menentukan area dihitung Eksterior. Staf tetap bisa mengubah angkanya.
      */
     public static function defaultDurationDays(bool $ppf, bool $exterior, bool $interior): int
     {
@@ -175,7 +175,9 @@ class Booking extends Model
     // isi manual — dipakai getEffectiveDurationDaysAttribute() &
     // Booking::booted(). PPF butuh beberapa hari, Kaca Film biasanya
     // selesai 1 hari.
-    public const DEFAULT_DURATION_DAYS_PPF     = 3;
+    // 2026-11-27: perkiraan awal PPF jadi 4 hari (tampil ke pelanggan sebagai "kurang lebih 4 hari"); lama sebenarnya ditentukan setelah SPK
+    // (kondisi kendaraan baru diketahui), lewat BookingDurationService.
+    public const DEFAULT_DURATION_DAYS_PPF     = 4;
     public const DEFAULT_DURATION_DAYS_DEFAULT = 1;
     // Pemasangan PPF Interior saja: 1 hari (bila Eksterior ikut dipilih, lamanya mengikuti Eksterior).
     public const DEFAULT_DURATION_DAYS_PPF_INTERIOR = 1;
@@ -322,6 +324,8 @@ class Booking extends Model
         'vehicle_variant',
         'vehicle_color',
         'vehicle_year',
+        // Jenis tenaga: bensin, listrik, hybrid (Fase 0 rombakan alur, 2026-11-27).
+        'vehicle_power',
     ];
 
     // Kolom internal tidak ikut diserialisasi ke API (2026-10-03) -- customer
@@ -402,6 +406,12 @@ class Booking extends Model
      * hari mulai Jumat, Minggu toko libur, jadi selesainya Senin — bukan
      * Minggu). Dipakai buat cek tumpang tindih kapasitas slot per hari.
      */
+    /** Plat dirapikan saat disimpan (huruf besar, spasi tunggal), sama dengan SPK dan Memo (VehicleFormat). */
+    public function setVehiclePlateAttribute(?string $value): void
+    {
+        $this->attributes['vehicle_plate'] = \App\Support\VehicleFormat::normalizePlate($value);
+    }
+
     public function getEndDateAttribute(): ?Carbon
     {
         if (! $this->preferred_date) return null;

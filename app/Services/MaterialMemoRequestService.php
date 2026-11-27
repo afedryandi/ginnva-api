@@ -235,16 +235,17 @@ class MaterialMemoRequestService
     // ------------------------------------------------------------- menutup memo buatan gudang sendiri
 
     /**
-     * Memo buatan staf gudang sendiri (alur langsung) ditutup setelah pengambilan pertama (2026-11-24), sama seperti memo pengajuan yang
-     * selesai diserahkan. Hanya pembuatnya, dan hanya untuk akun non-akses-penuh (akses penuh tetap bebas mengubah memonya).
+     * Memo langsung ditutup setelah pengambilan pertama, sama seperti memo pengajuan yang selesai diserahkan. Sejak 2026-11-27 tombol Tutup
+     * Memo dipakai AKSES PENUH (pembuat memo langsung; boleh juga akses penuh lain). Staf gudang memakai alur pengajuan dan menutup lewat
+     * Selesai Diserahkan; memo langsung lama buatan non-akses-penuh masih bisa ditutup pembuatnya supaya tidak terjebak terbuka.
      */
     public function canCloseDirect(User $user, MaterialMemo $memo): bool
     {
-        if ($memo->isRequestFlow() || $memo->isBookingLocked() || $user->isFullAccess()) {
+        if ($memo->isRequestFlow() || $memo->isBookingLocked() || ! $memo->items()->exists()) {
             return false;
         }
 
-        return (int) $memo->created_by === (int) $user->id && $memo->items()->exists();
+        return $user->isFullAccess() || (int) $memo->created_by === (int) $user->id;
     }
 
     /**
@@ -263,7 +264,7 @@ class MaterialMemoRequestService
             }
 
             if (! $this->canCloseDirect($by, $locked)) {
-                throw new InvalidArgumentException('Memo ini hanya bisa ditutup oleh pembuatnya, dan sudah harus berisi minimal satu barang.');
+                throw new InvalidArgumentException('Memo ini hanya bisa ditutup oleh akses penuh (atau pembuatnya, untuk memo langsung lama), dan sudah harus berisi minimal satu barang.');
             }
 
             $locked->update([
