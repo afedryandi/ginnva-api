@@ -40,7 +40,7 @@ class CorrectionSource extends BaseSource
             ->where('requested_by', '!=', $user->id)
             ->orderBy('created_at')
             ->get()
-            ->filter(fn (AttendanceCorrectionRequest $r) => $user->isFullAccess() || ($user->isStoreManager() && $this->inStore($user, $r->store_id)) || $this->canGlance($user, (int) $r->store_id))
+            ->filter(fn (AttendanceCorrectionRequest $r) => $user->isFullAccess() || ($user->canDecideAttendanceCorrections() && $this->inStore($user, $r->store_id)) || $this->canGlance($user, (int) $r->store_id))
             ->map(fn (AttendanceCorrectionRequest $r) => new ApprovalItem(
                 source: $this->key(),
                 id: $r->id,
@@ -76,7 +76,7 @@ class CorrectionSource extends BaseSource
 
     private function assertMayDecide(User $by, AttendanceCorrectionRequest $request): void
     {
-        if (! ($by->isFullAccess() || ($by->isStoreManager() && $this->inStore($by, $request->store_id)))) {
+        if (! ($by->isFullAccess() || ($by->canDecideAttendanceCorrections() && $this->inStore($by, $request->store_id)))) {
             throw new \RuntimeException('Akun ini tidak berwenang memutuskan koreksi absen ini.');
         }
     }

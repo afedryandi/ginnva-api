@@ -86,14 +86,14 @@ class InvoiceFromBookingTest extends TestCase
     {
         $ppf = $this->product('ppf', 'Ginnva H10');
         $booking = $this->booking(['film_product_id' => $ppf->id, 'ppf_area' => 'exterior', 'ppf_scope' => Booking::PPF_SCOPE_PARTIAL]);
-        BookingFilmProduct::create(['booking_id' => $booking->id, 'film_product_id' => $ppf->id, 'position' => 'Hood']);
-        BookingFilmProduct::create(['booking_id' => $booking->id, 'film_product_id' => $ppf->id, 'position' => 'Roof']);
+        BookingFilmProduct::create(['booking_id' => $booking->id, 'film_product_id' => $ppf->id, 'position' => 'Kap Mesin']);
+        BookingFilmProduct::create(['booking_id' => $booking->id, 'film_product_id' => $ppf->id, 'position' => 'Atap']);
 
         $names = array_column(InvoiceBookingPrefill::items($booking), 'name');
 
         $this->assertCount(2, $names);
-        $this->assertStringContainsString('Hood', $names[0]);
-        $this->assertStringContainsString('Roof', $names[1]);
+        $this->assertStringContainsString('Kap Mesin', $names[0]);
+        $this->assertStringContainsString('Atap', $names[1]);
     }
 
     public function test_prefill_for_several_variants_of_ppf_full_body_has_one_line_per_variant(): void
@@ -116,7 +116,7 @@ class InvoiceFromBookingTest extends TestCase
         $b = $this->product('ppf', 'Ginnva M10');
         $booking = $this->booking();
         BookingFilmProduct::create(['booking_id' => $booking->id, 'film_product_id' => $a->id, 'position' => Booking::PPF_ALL]);
-        BookingFilmProduct::create(['booking_id' => $booking->id, 'film_product_id' => $b->id, 'position' => 'Hood']);
+        BookingFilmProduct::create(['booking_id' => $booking->id, 'film_product_id' => $b->id, 'position' => 'Kap Mesin']);
 
         \App\Filament\Resources\BookingResource::syncMainProduct($booking);
 

@@ -93,25 +93,29 @@ class Booking extends Model
 
     public const WF_ALL = 'Seluruh Kaca';
 
-    /** Panel eksterior yang bisa dipilih untuk PPF Part (kunci => label). */
+    /**
+     * Panel eksterior yang bisa dipilih untuk PPF Part (kunci => label). Seluruhnya bahasa Indonesia sejak 2026-11-27 (migrasi
+     * 2026_12_28_000001 mengganti nama lama yang tersimpan di booking). Label disimpan apa adanya di kolom `position`, jadi jangan diubah
+     * tanpa migrasi data.
+     */
     public const PPF_PARTS = [
-        'hood' => 'Hood',
-        'front_bumper' => 'Front Bumper',
-        'rear_bumper' => 'Rear Bumper',
-        'left_front_fender' => 'Left Front Fender',
-        'right_front_fender' => 'Right Front Fender',
-        'left_side_skirt' => 'Left Side Skirt',
-        'right_side_skirt' => 'Right Side Skirt',
-        'roof' => 'Roof',
-        'rear_liftgate' => 'Rear Liftgate',
-        'left_outside_mirror' => 'Left Outside Mirror',
-        'right_outside_mirror' => 'Right Outside Mirror',
-        'left_front_door' => 'Left Front Door',
-        'right_front_door' => 'Right Front Door',
-        'left_rear_door' => 'Left Rear Door',
-        'right_rear_door' => 'Right Rear Door',
-        'left_rear_fender' => 'Left Rear Fender',
-        'right_rear_fender' => 'Right Rear Fender',
+        'hood' => 'Kap Mesin',
+        'front_bumper' => 'Bumper Depan',
+        'rear_bumper' => 'Bumper Belakang',
+        'left_front_fender' => 'Fender Depan Kiri',
+        'right_front_fender' => 'Fender Depan Kanan',
+        'left_side_skirt' => 'Side Skirt Kiri',
+        'right_side_skirt' => 'Side Skirt Kanan',
+        'roof' => 'Atap',
+        'rear_liftgate' => 'Pintu Bagasi',
+        'left_outside_mirror' => 'Spion Kiri',
+        'right_outside_mirror' => 'Spion Kanan',
+        'left_front_door' => 'Pintu Depan Kiri',
+        'right_front_door' => 'Pintu Depan Kanan',
+        'left_rear_door' => 'Pintu Belakang Kiri',
+        'right_rear_door' => 'Pintu Belakang Kanan',
+        'left_rear_fender' => 'Fender Belakang Kiri',
+        'right_rear_fender' => 'Fender Belakang Kanan',
     ];
 
     /**

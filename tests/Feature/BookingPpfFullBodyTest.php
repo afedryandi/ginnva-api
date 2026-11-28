@@ -91,13 +91,13 @@ class BookingPpfFullBodyTest extends TestCase
         $this->assertSame([], $R::partOptions(['detailing'], null));
         $this->assertSame('window_film', $R::productTypeForPart('Kaca Depan'));
         $this->assertSame('window_film', $R::productTypeForPart(Booking::WF_ALL));
-        $this->assertSame('ppf', $R::productTypeForPart('Hood'));
+        $this->assertSame('ppf', $R::productTypeForPart('Kap Mesin'));
         $this->assertSame('ppf', $R::productTypeForPart(Booking::PPF_ALL));
     }
 
     public function test_without_ppf_parts_keeps_window_film_rows(): void
     {
-        $rows = [['position' => 'Hood'], ['position' => 'Kaca Depan'], ['position' => 'Roof']];
+        $rows = [['position' => 'Kap Mesin'], ['position' => 'Kaca Depan'], ['position' => 'Atap']];
 
         $this->assertSame([1 => ['position' => 'Kaca Depan']], \App\Filament\Resources\BookingResource::withoutPpfParts($rows));
     }

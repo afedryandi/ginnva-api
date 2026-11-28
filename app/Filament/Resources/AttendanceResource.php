@@ -64,7 +64,8 @@ class AttendanceResource extends Resource
         // tetap wajib lewat "Ajukan Koreksi"; admin bisa memberi izin
         // entri/edit LANGSUNG ke staff tertentu lewat "Hak Akses Detail"
         // tanpa harus menaikkan mereka jadi store_manager/full-access.
-        return $user->isFullAccess() || $user->isStoreManager() || $user->hasModuleAction(static::class, $action, false);
+        // Izin eksplisit mengalahkan peran (2026-11-28): Store Manager dengan centang "Lihat saja" tidak bisa entri/ubah langsung.
+        return $user->moduleActionOrRoleDefault(static::class, $action, $user->isStoreManager());
     }
 
     public static function canCreate(): bool
@@ -516,7 +517,7 @@ class AttendanceResource extends Resource
                     ->iconButton()
                     ->tooltip('Ajukan Koreksi')
                     ->color('gray')
-                    ->visible(fn () => ! (auth()->user()?->isFullAccess() ?? false) && ! (auth()->user()?->isStoreManager() ?? false))
+                    ->visible(fn () => ! static::canEdit(null))
                     ->form([
                         Forms\Components\DateTimePicker::make('clock_in_at')
                             ->label('Jam Masuk')

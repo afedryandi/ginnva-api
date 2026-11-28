@@ -53,6 +53,7 @@ class AttendanceCorrectionServiceTest extends TestCase
     {
         [$store, $user] = $this->makeStoreAndUser();
         $manager = User::create(['name' => 'Manager', 'email' => 'mgr@test.local', 'password' => 'x', 'store_id' => $store->id]);
+        $manager->assignRole(\Spatie\Permission\Models\Role::findOrCreate('store_manager', 'web'));
 
         $service = app(AttendanceCorrectionService::class);
         $request = $service->submit([
@@ -81,6 +82,7 @@ class AttendanceCorrectionServiceTest extends TestCase
     {
         [$store, $user] = $this->makeStoreAndUser();
         $manager = User::create(['name' => 'Manager', 'email' => 'mgr2@test.local', 'password' => 'x', 'store_id' => $store->id]);
+        $manager->assignRole(\Spatie\Permission\Models\Role::findOrCreate('store_manager', 'web'));
 
         $service = app(AttendanceCorrectionService::class);
         $request = $service->submit([
@@ -105,6 +107,7 @@ class AttendanceCorrectionServiceTest extends TestCase
     {
         [$store, $user] = $this->makeStoreAndUser();
         $manager = User::create(['name' => 'Manager', 'email' => 'mgr3@test.local', 'password' => 'x', 'store_id' => $store->id]);
+        $manager->assignRole(\Spatie\Permission\Models\Role::findOrCreate('store_manager', 'web'));
 
         $service = app(AttendanceCorrectionService::class);
         $request = $service->submit([
@@ -164,6 +167,7 @@ class AttendanceCorrectionServiceTest extends TestCase
     {
         [$store, $user] = $this->makeStoreAndUser();
         $manager = User::create(['name' => 'Manager', 'email' => 'mgr-keep@test.local', 'password' => 'x', 'store_id' => $store->id]);
+        $manager->assignRole(\Spatie\Permission\Models\Role::findOrCreate('store_manager', 'web'));
         Attendance::create([
             'user_id' => $user->id, 'store_id' => $store->id, 'date' => '2026-09-20', 'entry_type' => 'clock', 'clock_in_at' => '2026-09-20 09:00:00',
         ]);
@@ -180,6 +184,7 @@ class AttendanceCorrectionServiceTest extends TestCase
     {
         [$store, $user] = $this->makeStoreAndUser();
         $manager = User::create(['name' => 'Manager', 'email' => 'mgr-fd@test.local', 'password' => 'x', 'store_id' => $store->id]);
+        $manager->assignRole(\Spatie\Permission\Models\Role::findOrCreate('store_manager', 'web'));
 
         \App\Models\FieldDutyRequest::create([
             'user_id' => $user->id, 'store_id' => $store->id, 'date' => '2026-09-20', 'description' => 'Kanvasing',
@@ -218,6 +223,7 @@ class AttendanceCorrectionServiceTest extends TestCase
     {
         [$store, $user] = $this->makeStoreAndUser();
         $manager = User::create(['name' => 'Manager', 'email' => 'mgr-bad@test.local', 'password' => 'x', 'store_id' => $store->id]);
+        $manager->assignRole(\Spatie\Permission\Models\Role::findOrCreate('store_manager', 'web'));
         Attendance::create([
             'user_id' => $user->id, 'store_id' => $store->id, 'date' => '2026-09-20', 'entry_type' => 'clock', 'clock_in_at' => '2026-09-20 15:00:00',
         ]);
@@ -233,6 +239,7 @@ class AttendanceCorrectionServiceTest extends TestCase
     {
         [$store, $user] = $this->makeStoreAndUser();
         $manager = User::create(['name' => 'Manager', 'email' => 'mgr-cancel@test.local', 'password' => 'x', 'store_id' => $store->id]);
+        $manager->assignRole(\Spatie\Permission\Models\Role::findOrCreate('store_manager', 'web'));
         $service = app(AttendanceCorrectionService::class);
         $request = $service->submit($this->payload($user, $store), $user->id);
 

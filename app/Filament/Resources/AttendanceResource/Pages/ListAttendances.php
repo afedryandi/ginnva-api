@@ -99,7 +99,7 @@ class ListAttendances extends ListRecords
                 ->label('Ajukan Koreksi')
                 ->icon('heroicon-o-paper-airplane')
                 ->color('gray')
-                ->visible(fn () => ! (auth()->user()?->isFullAccess() ?? false) && ! (auth()->user()?->isStoreManager() ?? false))
+                ->visible(fn () => ! AttendanceResource::canCreate())
                 ->form([
                     // Staf biasa hanya mengajukan koreksi untuk dirinya sendiri; yang berhak melihat satu toko boleh memilih rekan.
                     Forms\Components\Select::make('user_id')

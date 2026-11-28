@@ -434,4 +434,50 @@ class AttendanceCorrectionApprovalTest extends TestCase
 
         $this->assertStringContainsString('TIDAK otomatis berubah', $method->invoke(null, $request->fresh()));
     }
+
+    // ------------------------------------------------------------- izin eksplisit mengalahkan peran (2026-11-28)
+
+    public function test_store_manager_with_view_only_checklist_cannot_enter_edit_or_decide(): void
+    {
+        $viewOnly = $this->user('store_manager', null, ['menu_permissions' => ['AttendanceResource' => ['view']]]);
+        $employee = $this->user('kasir');
+        $request = $this->submit($employee);
+
+        $this->actingAs($viewOnly);
+        $this->assertFalse(\App\Filament\Resources\AttendanceResource::canCreate());
+        $this->assertFalse(\App\Filament\Resources\AttendanceResource::canEdit(null));
+        $this->assertFalse($viewOnly->canDecideAttendanceCorrections());
+
+        $this->expectException(RuntimeException::class);
+        $this->service->approve($request, $viewOnly->id);
+    }
+
+    public function test_view_only_store_manager_cannot_reject_and_gets_no_notification(): void
+    {
+        $viewOnly = $this->user('store_manager', null, ['menu_permissions' => ['AttendanceResource' => ['view']]]);
+        $request = $this->submit($this->user('kasir'));
+
+        try {
+            $this->service->reject($request, $viewOnly->id, 'x');
+            $this->fail('Seharusnya ditolak');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('izin', $e->getMessage());
+        }
+        $this->assertTrue($request->fresh()->isPending());
+    }
+
+    public function test_store_manager_with_update_checked_or_without_entry_keeps_abilities(): void
+    {
+        $granted = $this->user('store_manager', null, ['menu_permissions' => ['AttendanceResource' => ['view', 'update', 'create']]]);
+        $default = $this->user('store_manager');
+        $full = $this->user('store_manager', null, ['menu_permissions' => ['AttendanceResource' => ['view']]]);
+
+        $this->assertTrue($granted->canDecideAttendanceCorrections());
+        $this->assertTrue($default->canDecideAttendanceCorrections());
+        $this->assertFalse($full->canDecideAttendanceCorrections());
+
+        $this->actingAs($default);
+        $this->assertTrue(\App\Filament\Resources\AttendanceResource::canCreate());
+        $this->assertTrue(\App\Filament\Resources\AttendanceResource::canEdit(null));
+    }
 }

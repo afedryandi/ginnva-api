@@ -577,6 +577,43 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
     }
 
     /**
+     * Izin eksplisit mengalahkan peran (keputusan pemilik 2026-11-28): bila admin sudah menyimpan
+     * centang "Hak Akses Detail" untuk menu ini (entri ada di menu_permissions, walau hanya
+     * "Lihat"), HANYA centang itu yang berlaku -- peran (mis. Store Manager) tidak lagi
+     * memberi kemampuan tambahan. Bila tidak ada entri sama sekali, dipakai bawaan peran
+     * ($roleDefault) supaya akun lama tidak berubah. Akses penuh selalu boleh.
+     */
+    public function moduleActionOrRoleDefault(string $resourceClass, string $action, bool $roleDefault): bool
+    {
+        if ($this->isFullAccess()) {
+            return true;
+        }
+
+        if (! $this->hasMenuAccess($resourceClass)) {
+            return false;
+        }
+
+        $menuPermissions = $this->menu_permissions ?? [];
+        $entry = $menuPermissions[$resourceClass] ?? $menuPermissions[class_basename($resourceClass)] ?? null;
+
+        if (is_array($entry)) {
+            return in_array($action, $entry, true);
+        }
+
+        return $roleDefault;
+    }
+
+    /**
+     * Boleh menyetujui/menolak koreksi absensi: akses penuh, atau Store Manager (bawaan peran)
+     * -- kecuali admin sudah menyimpan centang eksplisit menu Absensi Karyawan; maka hanya
+     * centang "Ubah" yang menentukan (keputusan pemilik 2026-11-28).
+     */
+    public function canDecideAttendanceCorrections(): bool
+    {
+        return $this->moduleActionOrRoleDefault(\App\Filament\Resources\AttendanceResource::class, 'update', $this->isStoreManager());
+    }
+
+    /**
      * Dipakai app mobile staff untuk memutuskan halaman awal setelah
      * login (lihat AuthController::transform()) — installer SELALU true
      * di sini walau canAccessStaffArea()-nya false (installer tidak

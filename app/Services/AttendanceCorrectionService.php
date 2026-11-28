@@ -118,7 +118,7 @@ class AttendanceCorrectionService
     {
         $recipients = User::where('is_active', true)
             ->get()
-            ->filter(fn (User $u) => $u->isFullAccess() || ($u->isStoreManager() && $u->store_id === $request->store_id));
+            ->filter(fn (User $u) => $u->isFullAccess() || ($u->canDecideAttendanceCorrections() && $u->store_id === $request->store_id));
 
         foreach ($recipients as $recipient) {
             Notification::make()
@@ -189,6 +189,12 @@ class AttendanceCorrectionService
                 throw new RuntimeException('Tidak boleh menyetujui pengajuan koreksi absensi milik sendiri.');
             }
 
+            // Izin eksplisit mengalahkan peran (2026-11-28): penegakan di layanan, bukan hanya tombol.
+            $decider = User::find($approvedBy);
+            if (! $decider || ! $decider->canDecideAttendanceCorrections()) {
+                throw new RuntimeException('Akun ini tidak punya izin memutuskan koreksi absensi.');
+            }
+
             // Jam yang tidak diisi pengaju tetap memakai jam yang sudah tercatat (mis. hanya melengkapi jam keluar), bukan dikosongkan.
             $existing = Attendance::where('user_id', $locked->user_id)->where('date', $locked->date->toDateString())->first();
             if (! $replaceFieldDuty && $existing?->entry_type === 'field_duty') {
@@ -247,6 +253,12 @@ class AttendanceCorrectionService
             // konsistensi (menolak permintaan sendiri juga tidak boleh, walau dampaknya kecil).
             if ($locked->requested_by === $rejectedBy) {
                 throw new RuntimeException('Tidak boleh memutuskan pengajuan koreksi absensi milik sendiri.');
+            }
+
+            // Izin eksplisit mengalahkan peran (2026-11-28): penegakan di layanan, bukan hanya tombol.
+            $decider = User::find($rejectedBy);
+            if (! $decider || ! $decider->canDecideAttendanceCorrections()) {
+                throw new RuntimeException('Akun ini tidak punya izin memutuskan koreksi absensi.');
             }
 
             $locked->update([

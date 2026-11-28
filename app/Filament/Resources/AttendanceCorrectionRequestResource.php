@@ -92,7 +92,7 @@ class AttendanceCorrectionRequestResource extends Resource
         $user = auth()->user();
 
         if ($user && ! $user->isFullAccess()) {
-            if ($user->isStoreManager()) {
+            if ($user->canDecideAttendanceCorrections()) {
                 $query->where('store_id', $user->store_id);
             } else {
                 $query->where('requested_by', $user->id);
@@ -168,7 +168,7 @@ class AttendanceCorrectionRequestResource extends Resource
                 // Penyetuju membuka daftar langsung pada antrean yang menunggu; pengaju tetap melihat seluruh riwayatnya.
                 Tables\Filters\SelectFilter::make('status')
                     ->label('Status')
-                    ->default(fn () => (auth()->user()?->isFullAccess() || auth()->user()?->isStoreManager()) ? AttendanceCorrectionRequest::STATUS_PENDING : null)
+                    ->default(fn () => (auth()->user()?->canDecideAttendanceCorrections()) ? AttendanceCorrectionRequest::STATUS_PENDING : null)
                     ->options([
                         AttendanceCorrectionRequest::STATUS_PENDING => 'Menunggu',
                         AttendanceCorrectionRequest::STATUS_APPROVED => 'Disetujui',
@@ -184,7 +184,7 @@ class AttendanceCorrectionRequestResource extends Resource
                     ->tooltip('Setujui')
                     ->color('success')
                     ->visible(fn (AttendanceCorrectionRequest $record) => $record->isPending()
-                        && (auth()->user()?->isFullAccess() || auth()->user()?->isStoreManager())
+                        && (auth()->user()?->canDecideAttendanceCorrections())
                         // Bug diperbaiki 2026-09-29 (audit Absensi) -- guard UI, penegakan
                         // sebenarnya ada di AttendanceCorrectionService (dalam lock).
                         && $record->requested_by !== auth()->id())
@@ -252,7 +252,7 @@ class AttendanceCorrectionRequestResource extends Resource
                     ->tooltip('Tolak')
                     ->color('danger')
                     ->visible(fn (AttendanceCorrectionRequest $record) => $record->isPending()
-                        && (auth()->user()?->isFullAccess() || auth()->user()?->isStoreManager())
+                        && (auth()->user()?->canDecideAttendanceCorrections())
                         // Bug diperbaiki 2026-09-29 (audit Absensi) -- guard UI, penegakan
                         // sebenarnya ada di AttendanceCorrectionService (dalam lock).
                         && $record->requested_by !== auth()->id())
@@ -329,7 +329,7 @@ class AttendanceCorrectionRequestResource extends Resource
     {
         $user = auth()->user();
 
-        if (! $user || ! ($user->isFullAccess() || $user->isStoreManager())) {
+        if (! $user || ! $user->canDecideAttendanceCorrections()) {
             return null;
         }
 
